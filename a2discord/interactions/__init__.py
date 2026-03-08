@@ -1,1 +1,0 @@
-"""A2H pattern handlers — AUTHORIZE, COLLECT, ESCALATE, INFORM, RESULT."""
