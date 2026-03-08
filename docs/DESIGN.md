@@ -2,9 +2,28 @@
 
 ## Overview
 
-a2discord is an adapter that translates between the A2A (Agent-to-Agent) protocol and Discord's API. It enables any A2A-compliant agent to operate as a Discord bot without the agent needing any Discord-specific code.
+a2discord is a **transport adapter** — the same architectural pattern as [a2a-relay](https://github.com/zeroasterisk/a2a-relay). Where the relay translates WebSocket↔A2A, a2discord translates Discord↔A2A. The agent stays pure A2A and never knows what surface it's talking to.
 
-## Architecture Layers
+This is **not** an agent framework plugin or an A2A protocol extension. It's infrastructure. See [DECISIONS.md](DECISIONS.md#adr-001-standalone-transport-adapter-not-framework-integration) for the full rationale.
+
+**State ownership:**
+- **a2discord** owns Discord state (threads, messages, button interactions, component lifecycle)
+- **The agent** owns task state (A2A task lifecycle, business logic)
+- **A2H/A2UI** bridge the gap: agents emit interaction intents and UI components, the adapter renders them as Discord primitives
+
+## Architecture
+
+```mermaid
+graph LR
+    User["Discord User"]
+    Adapter["a2discord<br/>(transport adapter)"]
+    Agent["Any A2A Agent"]
+
+    User <-->|"Discord<br/>events"| Adapter
+    Adapter <-->|"A2A<br/>JSON-RPC"| Agent
+```
+
+## Layers
 
 ```
 ┌─────────────────────────────────────────────┐

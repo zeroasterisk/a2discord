@@ -81,6 +81,8 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture and mapping speci
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the development plan.
 
+See [docs/DECISIONS.md](docs/DECISIONS.md) for architecture decision records.
+
 ## License
 
 MIT
