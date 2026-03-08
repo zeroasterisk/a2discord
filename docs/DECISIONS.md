@@ -92,7 +92,50 @@
 
 ---
 
+## ADR-005: Preliminary A2H hints format
+
+**Date:** 2026-03-08
+**Status:** Accepted (preliminary)
+**Context:** A2H conventions aren't formalized yet. How do agents signal interaction intent (INFORM, COLLECT, AUTHORIZE, ESCALATE, RESULT) to the adapter?
+
+**Decision:** Define a pragmatic metadata schema now, mark it as preliminary, align with A2H spec when it solidifies.
+
+**Format:** A2A message parts include a `metadata` field. We use a `a2h` key:
+
+```json
+{
+  "parts": [{
+    "kind": "text",
+    "text": "Deploy to production?",
+    "metadata": {
+      "a2h": {
+        "intent": "authorize",
+        "options": ["approve", "deny"],
+        "timeout_seconds": 300
+      }
+    }
+  }]
+}
+```
+
+Intent-specific metadata:
+- **INFORM** — no extra fields needed (default behavior)
+- **COLLECT** — `fields: [{ name, label, required, type }]`
+- **AUTHORIZE** — `options: string[]`, `timeout_seconds`
+- **ESCALATE** — `reason`, `urgency: "low" | "medium" | "high"`
+- **RESULT** — `status: "success" | "failure"`, `original_message_ref`
+
+> ⚠️ **Preliminary.** This schema will evolve. When A2H conventions formalize, we'll publish a migration guide. TODO: track A2H spec progress and align.
+
+**Consequences:**
+
+- Agents can signal intent today without waiting for spec
+- Schema is simple enough to be forward-compatible
+- TODO: versioning strategy for breaking changes
+- TODO: fallback behavior when `a2h` metadata is absent (treat as INFORM)
+
+---
+
 ## Open Questions
 
-- **A2H hints format** — A2H conventions aren't formalized yet. Define a pragmatic metadata schema for intent hints in A2A message parts now, align with A2H spec later?
 - **Streaming strategy** — Discord rate-limits message edits (5/5s). Buffer with timer? Typing indicator until complete? Needs experimentation.
