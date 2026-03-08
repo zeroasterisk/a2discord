@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "demo": "tsx src/sample/demo-bot.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit/",
