@@ -6,3 +6,5 @@ dist/
 *.egg-info/
 .ruff_cache/
 .pytest_cache/
+node_modules/
+dist/
