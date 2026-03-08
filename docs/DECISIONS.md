@@ -136,6 +136,35 @@ Intent-specific metadata:
 
 ---
 
-## Open Questions
+## ADR-006: Streaming strategy — buffered edits with rate-limit governor
 
-- **Streaming strategy** — Discord rate-limits message edits (5/5s). Buffer with timer? Typing indicator until complete? Needs experimentation.
+**Date:** 2026-03-08
+**Status:** Accepted
+**Context:** A2A streaming sends chunks rapidly, but Discord rate-limits message edits (~5 per 5s per channel). How do we handle this?
+
+**Decision:** Buffer streamed chunks and flush edits on a governor that matches Discord's rate limits. Configurable per-deployment.
+
+**Default behavior:**
+1. First chunk → send message + show typing indicator
+2. Subsequent chunks → buffer in memory
+3. Governor flushes buffer as a message edit at the max safe rate (~1 edit/second)
+4. Final chunk → flush immediately, remove typing indicator
+
+**Config:**
+```yaml
+adapter:
+  streaming:
+    strategy: "buffer"          # "buffer" | "typing-then-post" | "disabled"
+    flush_interval_ms: 1000     # how often to flush buffered edits
+    max_edit_rate: 5            # edits per 5s (matches Discord limit)
+```
+
+**Strategies:**
+- **`buffer`** (default) — stream edits at governed rate. Best UX for conversational agents.
+- **`typing-then-post`** — show typing indicator during stream, post final message only. Lower API usage, but user sees nothing until done.
+- **`disabled`** — no streaming, wait for complete response. Simplest.
+
+**Consequences:**
+- Default works well out of the box for most agents
+- Operators with high-traffic bots can switch to `typing-then-post` to reduce API calls
+- Governor prevents 429s without requiring agents to know about Discord limits
