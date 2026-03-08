@@ -65,15 +65,17 @@ Discord's interaction model (buttons, modals, select menus) is a natural fit for
 
 ```bash
 # Install dependencies
-uv sync
+bun install
 
 # Configure
 cp .env.example .env
 # Edit .env with your Discord bot token and A2A agent URL
 
 # Run
-uv run python -m a2discord
+bun run dev
 ```
+
+See the [User Guide](docs/USER_GUIDE.md) for full setup instructions including Discord bot creation.
 
 ## Architecture
 
