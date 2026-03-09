@@ -451,7 +451,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // ─── Message handler ───
 
 client.on(Events.MessageCreate, async (msg) => {
-  if (msg.author.bot) return;
+  // Allow commands from whitelisted bots (e.g. Zaf's OpenClaw bot for puppeting)
+  const ALLOWED_BOTS = ['1465366810705526955']; // Zaf bot
+  if (msg.author.bot && !ALLOWED_BOTS.includes(msg.author.id)) return;
   if (msg.system) return;
 
   // Channel filter
