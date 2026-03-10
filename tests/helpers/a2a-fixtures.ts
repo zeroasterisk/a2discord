@@ -251,6 +251,140 @@ export function createStreamingEvents(taskId: string, chunks: string[]): string[
   return events;
 }
 
+// ─── A2UI Component Factories ───
+
+export interface A2UIComponent {
+  id: string;
+  component: string;
+  [key: string]: unknown;
+}
+
+let a2uiCounter = 0;
+
+function a2uiId(prefix: string): string {
+  return `${prefix}-${++a2uiCounter}`;
+}
+
+export function resetA2UICounter() {
+  a2uiCounter = 0;
+}
+
+export function createA2UIText(text: string, variant?: string, id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('text'), component: 'Text', text, ...(variant ? { variant } : {}) };
+}
+
+export function createA2UIButton(label: string, actionName: string, variant?: string, id?: string): A2UIComponent {
+  const textId = a2uiId('btn-label');
+  const btnId = id ?? a2uiId('btn');
+  return [
+    { id: textId, component: 'Text', text: label },
+    { id: btnId, component: 'Button', child: textId, variant: variant ?? 'primary', action: { event: { name: actionName } } },
+  ] as any; // Returns array — caller must spread into components
+}
+
+export function createA2UIButtonPair(label: string, actionName: string, variant?: string): A2UIComponent[] {
+  const textId = a2uiId('btn-label');
+  const btnId = a2uiId('btn');
+  return [
+    { id: textId, component: 'Text', text: label },
+    { id: btnId, component: 'Button', child: textId, variant: variant ?? 'primary', action: { event: { name: actionName } } },
+  ];
+}
+
+export function createA2UIContainer(title: string, description: string, extraChildren?: A2UIComponent[]): { components: A2UIComponent[]; rootId: string } {
+  const titleId = a2uiId('title');
+  const bodyId = a2uiId('body');
+  const contentId = a2uiId('content');
+  const cardId = a2uiId('card');
+
+  const childIds = [titleId, bodyId, ...(extraChildren?.map(c => c.id) ?? [])];
+  const components: A2UIComponent[] = [
+    { id: titleId, component: 'Text', text: title, variant: 'h1' },
+    { id: bodyId, component: 'Text', text: description, variant: 'body' },
+    ...(extraChildren ?? []),
+    { id: contentId, component: 'Column', children: childIds },
+    { id: cardId, component: 'Card', child: contentId },
+  ];
+
+  return { components, rootId: cardId };
+}
+
+export function createA2UISection(title: string, content: string, id?: string): A2UIComponent[] {
+  const titleId = a2uiId('section-title');
+  const bodyId = a2uiId('section-body');
+  const colId = id ?? a2uiId('section');
+  return [
+    { id: titleId, component: 'Text', text: title, variant: 'h3' },
+    { id: bodyId, component: 'Text', text: content, variant: 'body' },
+    { id: colId, component: 'Column', children: [titleId, bodyId] },
+  ];
+}
+
+export function createA2UISelectMenu(
+  options: { label: string; value: string; description?: string }[],
+  id?: string,
+): A2UIComponent {
+  return {
+    id: id ?? a2uiId('select'),
+    component: 'ChoicePicker',
+    options,
+    maxAllowedSelections: 1,
+  };
+}
+
+export function createA2UIImage(url: string, variant?: string, id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('img'), component: 'Image', url, ...(variant ? { variant } : {}) };
+}
+
+export function createA2UIDivider(id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('divider'), component: 'Divider', axis: 'horizontal' };
+}
+
+export function createA2UIIcon(name: string, id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('icon'), component: 'Icon', name };
+}
+
+export function createA2UITextField(label: string, textFieldType?: string, id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('input'), component: 'TextField', label, textFieldType: textFieldType ?? 'shortText' };
+}
+
+export function createA2UICheckBox(label: string, id?: string): A2UIComponent {
+  return { id: id ?? a2uiId('checkbox'), component: 'CheckBox', label };
+}
+
+/**
+ * Build a full A2UI payload with root component wrapping the given card IDs.
+ */
+export function buildA2UIPayload(cards: { components: A2UIComponent[]; rootId: string }[]): { version: string; components: A2UIComponent[] } {
+  const allComponents: A2UIComponent[] = [];
+  const rootChildren: string[] = [];
+
+  for (const card of cards) {
+    allComponents.push(...card.components);
+    rootChildren.push(card.rootId);
+  }
+
+  allComponents.push({ id: 'root', component: 'Column', children: rootChildren });
+
+  return { version: '0.9', components: allComponents };
+}
+
+/**
+ * Wrap an A2UI payload into an A2A message data part.
+ */
+export function createA2UIMessage(
+  payload: { version: string; components: A2UIComponent[] },
+  intent?: A2HIntent,
+  extra?: Record<string, unknown>,
+): A2AMessage {
+  const metadata = intent ? { intent, ...extra } : extra;
+  return {
+    role: 'agent',
+    parts: [{ type: 'data', data: { a2ui: payload } }],
+    metadata,
+  };
+}
+
 /** Default agent card */
 export function createAgentCard(overrides: Partial<A2AAgentCard> = {}): A2AAgentCard {
   return {

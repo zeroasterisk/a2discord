@@ -28,6 +28,18 @@ import {
   createJsonRpcResponse,
   createJsonRpcError,
   createTaskId,
+  createA2UIContainer,
+  createA2UIButtonPair,
+  createA2UISelectMenu,
+  createA2UITextField,
+  createA2UIText,
+  createA2UIDivider,
+  createA2UIImage,
+  createA2UIIcon,
+  createA2UICheckBox,
+  createA2UIMessage,
+  buildA2UIPayload,
+  resetA2UICounter,
   type A2ATask,
   type A2AAgentCard,
 } from '../helpers/a2a-fixtures';
@@ -41,7 +53,12 @@ export type ScenarioName =
   | 'error'
   | 'timeout'
   | 'streaming'
-  | 'malformed';
+  | 'malformed'
+  | 'a2ui-inform'
+  | 'a2ui-authorize'
+  | 'a2ui-collect'
+  | 'a2ui-dashboard'
+  | 'a2ui-kitchen-sink';
 
 export type ScenarioHandler = (params: any) => A2ATask | Promise<A2ATask>;
 export type StreamHandler = (params: any) => string[] | Promise<string[]>;
@@ -217,6 +234,16 @@ export class MockA2AServer {
         return createJsonRpcResponse(echoTaskResponse(userText, taskId), rpcId);
       case 'malformed':
         return 'not json {{{';
+      case 'a2ui-inform':
+        return createJsonRpcResponse(this.a2uiInformTask(taskId), rpcId);
+      case 'a2ui-authorize':
+        return createJsonRpcResponse(this.a2uiAuthorizeTask(taskId), rpcId);
+      case 'a2ui-collect':
+        return createJsonRpcResponse(this.a2uiCollectTask(taskId), rpcId);
+      case 'a2ui-dashboard':
+        return createJsonRpcResponse(this.a2uiDashboardTask(taskId), rpcId);
+      case 'a2ui-kitchen-sink':
+        return createJsonRpcResponse(this.a2uiKitchenSinkTask(taskId), rpcId);
       default:
         return createJsonRpcResponse(echoTaskResponse(userText, taskId), rpcId);
     }
@@ -248,6 +275,67 @@ export class MockA2AServer {
       await new Promise((r) => setTimeout(r, 50));
     }
     res.end();
+  }
+
+  // ─── A2UI scenario builders ───
+
+  private a2uiInformTask(taskId: string): A2ATask {
+    resetA2UICounter();
+    const card = createA2UIContainer('📊 Project Status', 'Everything is running smoothly.');
+    const payload = buildA2UIPayload([card]);
+    const msg = createA2UIMessage(payload, 'INFORM');
+    return createTask({ id: taskId, status: { state: 'completed', message: msg } });
+  }
+
+  private a2uiAuthorizeTask(taskId: string): A2ATask {
+    resetA2UICounter();
+    const approveBtnComps = createA2UIButtonPair('✅ Approve', 'approve', 'success');
+    const denyBtnComps = createA2UIButtonPair('❌ Deny', 'deny', 'danger');
+    const card = createA2UIContainer('🔐 Deploy to Production?', 'This will push v0.2.0 to Cloud Run.', [...approveBtnComps, ...denyBtnComps]);
+    const payload = buildA2UIPayload([card]);
+    const msg = createA2UIMessage(payload, 'AUTHORIZE');
+    return createTask({ id: taskId, status: { state: 'input-required', message: msg } });
+  }
+
+  private a2uiCollectTask(taskId: string): A2ATask {
+    resetA2UICounter();
+    const nameField = createA2UITextField('Project Name', 'shortText');
+    const descField = createA2UITextField('Description', 'longText');
+    const card = createA2UIContainer('📝 New Project', 'Please provide project details.', [nameField, descField]);
+    const payload = buildA2UIPayload([card]);
+    const msg = createA2UIMessage(payload, 'COLLECT');
+    return createTask({ id: taskId, status: { state: 'input-required', message: msg } });
+  }
+
+  private a2uiDashboardTask(taskId: string): A2ATask {
+    resetA2UICounter();
+    const emailCard = createA2UIContainer('📧 Unread Emails (3)', 'team@google.com: ADK v1.2 release planning');
+    const calCard = createA2UIContainer('📅 Upcoming', '14:00 — 1:1 with PM\n15:30 — Sprint Review');
+    const payload = buildA2UIPayload([emailCard, calCard]);
+    const msg = createA2UIMessage(payload, 'INFORM');
+    return createTask({ id: taskId, status: { state: 'completed', message: msg } });
+  }
+
+  private a2uiKitchenSinkTask(taskId: string): A2ATask {
+    resetA2UICounter();
+    const icon = createA2UIIcon('star');
+    const divider = createA2UIDivider();
+    const image = createA2UIImage('https://github.com/zeroasterisk.png', 'thumbnail');
+    const checkbox = createA2UICheckBox('I agree to terms');
+    const select = createA2UISelectMenu([
+      { label: 'Option A', value: 'a' },
+      { label: 'Option B', value: 'b' },
+      { label: 'Option C', value: 'c' },
+    ]);
+    const btnComps = createA2UIButtonPair('Submit', 'submit', 'primary');
+    const card = createA2UIContainer(
+      '🍳 Kitchen Sink',
+      '**Bold**, *italic*, `code` — all A2UI component types.',
+      [icon, divider, image, checkbox, select, ...btnComps],
+    );
+    const payload = buildA2UIPayload([card]);
+    const msg = createA2UIMessage(payload, 'INFORM');
+    return createTask({ id: taskId, status: { state: 'completed', message: msg } });
   }
 }
 

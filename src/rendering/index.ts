@@ -2,6 +2,9 @@
  * Discord renderer — converts A2A messages to Discord message options.
  */
 
+export { A2UIRenderer } from './a2ui-renderer.js';
+export type { A2UIComponent, A2UIPayload, A2HIntent as A2UIIntent } from './a2ui-renderer.js';
+
 import {
   EmbedBuilder,
   ActionRowBuilder,

@@ -1,81 +1,85 @@
 /**
  * Live integration test — single bot that sends commands to itself and verifies responses.
- * The bot handles commands from itself (same client sends and receives).
+ * Now A2UI-driven: all responses go through A2UIRenderer.
  */
 import {
   Client, GatewayIntentBits, Events, EmbedBuilder, ActionRowBuilder,
   ButtonBuilder, ButtonStyle, StringSelectMenuBuilder,
-  type TextChannel, type Message,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
+  type TextChannel, type Message, type ButtonInteraction,
+  type StringSelectMenuInteraction, type ModalSubmitInteraction,
+  ChannelType,
 } from 'discord.js';
+import { A2UIRenderer, type A2UIComponent } from '../../src/rendering/a2ui-renderer';
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN || process.env.A2DISCORD_BOT_TOKEN;
 if (!BOT_TOKEN) { console.error('Set DISCORD_TOKEN or A2DISCORD_BOT_TOKEN'); process.exit(1); }
 const CHANNEL_ID = "1479976722085580863";
 
-const BLUE = 0x3498db, GREEN = 0x2ecc71, RED = 0xe74c3c, ORANGE = 0xe67e22;
-
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
+const renderer = new A2UIRenderer();
 let botUserId = '';
-let testPhase = false; // true when we're running tests
 
-// === COMMAND HANDLERS ===
+function a2ui(components: A2UIComponent[], metadata?: Record<string, unknown>) {
+  return renderer.render(components, metadata);
+}
+
+// === COMMAND HANDLERS (A2UI-driven) ===
 const commands: Record<string, (msg: Message) => Promise<void>> = {
   help: async (msg) => {
-    const embed = new EmbedBuilder()
-      .setTitle('🤖 a2discord Demo Bot')
-      .setDescription('Deterministic demo — exercising Discord rendering capabilities.')
-      .setColor(BLUE)
-      .addFields(
-        { name: '`!embed`', value: 'Rich embed with fields', inline: true },
-        { name: '`!approve`', value: 'Approve/deny flow', inline: true },
-        { name: '`!kitchen-sink`', value: 'Everything', inline: true },
-      );
-    await msg.reply({ embeds: [embed] });
+    const components: A2UIComponent[] = [
+      { id: 'title', component: 'Text', text: '🤖 a2discord Demo Bot', variant: 'h1' },
+      { id: 'desc', component: 'Text', text: 'A2UI-driven demo — all responses rendered through A2UIRenderer.', variant: 'body' },
+      { id: 'cmds', component: 'Text', text: '`!embed` — Rich embed\n`!approve` — Approve/deny\n`!kitchen-sink` — Everything', variant: 'body' },
+      { id: 'content', component: 'Column', children: ['title', 'desc', 'cmds'] },
+      { id: 'root', component: 'Card', child: 'content' },
+    ];
+    await msg.reply(a2ui(components, { intent: 'INFORM' }));
   },
   embed: async (msg) => {
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Project Status')
-      .setDescription('A2H INFORM intent rendered as embed')
-      .setColor(BLUE)
-      .addFields(
-        { name: 'Project', value: 'a2discord', inline: true },
-        { name: 'Status', value: '🟢 On Track', inline: true },
-      )
-      .setTimestamp();
-    await msg.reply({ embeds: [embed] });
+    const components: A2UIComponent[] = [
+      { id: 'title', component: 'Text', text: '📊 Project Status', variant: 'h1' },
+      { id: 'desc', component: 'Text', text: 'A2H INFORM intent rendered as embed', variant: 'body' },
+      { id: 'f1', component: 'Text', text: 'Project: a2discord', variant: 'body' },
+      { id: 'f2', component: 'Text', text: 'Status: 🟢 On Track', variant: 'body' },
+      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1', 'f2'] },
+      { id: 'root', component: 'Card', child: 'content' },
+    ];
+    await msg.reply(a2ui(components, { intent: 'INFORM' }));
   },
   approve: async (msg) => {
-    const embed = new EmbedBuilder()
-      .setTitle('🔐 Authorization Required')
-      .setDescription('Deploy to production?')
-      .setColor(ORANGE)
-      .addFields({ name: 'Service', value: '`a2discord-prod`', inline: true });
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('demo-approve').setLabel('✅ Approve').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('demo-deny').setLabel('❌ Deny').setStyle(ButtonStyle.Danger),
-    );
-    await msg.reply({ embeds: [embed], components: [row] });
+    const components: A2UIComponent[] = [
+      { id: 'title', component: 'Text', text: '🔐 Authorization Required', variant: 'h1' },
+      { id: 'desc', component: 'Text', text: 'Deploy to production?', variant: 'body' },
+      { id: 'f1', component: 'Text', text: 'Service: `a2discord-prod`', variant: 'body' },
+      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1'] },
+      { id: 'root', component: 'Card', child: 'content' },
+    ];
+    await msg.reply(a2ui(components, { intent: 'AUTHORIZE' }));
   },
   'kitchen-sink': async (msg) => {
-    const embed = new EmbedBuilder()
-      .setTitle('🍳 Kitchen Sink')
-      .setDescription('**Bold**, *italic*, `code`')
-      .setColor(0x9b59b6)
-      .addFields({ name: 'Field 1', value: 'Value', inline: true }, { name: 'Field 2', value: 'Value', inline: true })
-      .setTimestamp();
-    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('ks-approve').setLabel('✅ Approve').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('ks-deny').setLabel('❌ Deny').setStyle(ButtonStyle.Danger),
-    );
-    const select = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder().setCustomId('ks-select').setPlaceholder('Pick...').addOptions(
-        { label: 'A', value: 'a', emoji: '🅰️' }, { label: 'B', value: 'b', emoji: '🅱️' },
-      ),
-    );
-    await msg.reply({ embeds: [embed], components: [buttons, select] });
+    const components: A2UIComponent[] = [
+      { id: 'title', component: 'Text', text: '🍳 Kitchen Sink', variant: 'h1' },
+      { id: 'desc', component: 'Text', text: '**Bold**, *italic*, `code`', variant: 'body' },
+      { id: 'f1', component: 'Text', text: 'Field 1: Value', variant: 'body' },
+      { id: 'f2', component: 'Text', text: 'Field 2: Value', variant: 'body' },
+      { id: 'approve-label', component: 'Text', text: '✅ Approve' },
+      { id: 'approve-btn', component: 'Button', child: 'approve-label', variant: 'success', action: { event: { name: 'approve' } } },
+      { id: 'deny-label', component: 'Text', text: '❌ Deny' },
+      { id: 'deny-btn', component: 'Button', child: 'deny-label', variant: 'danger', action: { event: { name: 'deny' } } },
+      { id: 'btn-row', component: 'Row', children: ['approve-btn', 'deny-btn'] },
+      {
+        id: 'ks-select', component: 'ChoicePicker',
+        options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }],
+        maxAllowedSelections: 1,
+      },
+      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1', 'f2', 'btn-row', 'ks-select'] },
+      { id: 'root', component: 'Card', child: 'content' },
+    ];
+    await msg.reply(a2ui(components, { intent: 'INFORM' }));
   },
 };
 
@@ -85,10 +89,8 @@ client.on(Events.MessageCreate, async (msg) => {
   const content = msg.content.trim();
   if (!content.startsWith('!')) return;
   const cmd = content.slice(1).split(/\s+/)[0].toLowerCase();
-  
-  // Only handle commands that are NOT replies (original commands, not bot responses)
   if (msg.reference) return;
-  
+
   if (commands[cmd]) {
     console.log(`[bot] Handling !${cmd} from ${msg.author.username} (${msg.author.id})`);
     try {
@@ -105,38 +107,50 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton()) {
     const id = interaction.customId;
     if (id.includes('approve')) {
-      const embed = new EmbedBuilder().setTitle('✅ Approved').setDescription(`Approved by <@${interaction.user.id}>`).setColor(GREEN).setTimestamp();
-      await interaction.update({ embeds: [embed], components: [] });
+      const components: A2UIComponent[] = [
+        { id: 'title', component: 'Text', text: '✅ Approved', variant: 'h1' },
+        { id: 'desc', component: 'Text', text: `Approved by <@${interaction.user.id}>`, variant: 'body' },
+        { id: 'content', component: 'Column', children: ['title', 'desc'] },
+        { id: 'root', component: 'Card', child: 'content' },
+      ];
+      await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
     } else if (id.includes('deny')) {
-      const embed = new EmbedBuilder().setTitle('❌ Denied').setDescription(`Denied by <@${interaction.user.id}>`).setColor(RED).setTimestamp();
-      await interaction.update({ embeds: [embed], components: [] });
+      const components: A2UIComponent[] = [
+        { id: 'title', component: 'Text', text: '❌ Denied', variant: 'h1' },
+        { id: 'desc', component: 'Text', text: `Denied by <@${interaction.user.id}>`, variant: 'body' },
+        { id: 'content', component: 'Column', children: ['title', 'desc'] },
+        { id: 'root', component: 'Card', child: 'content' },
+      ];
+      await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: false }), components: [] });
     }
   }
   if (interaction.isStringSelectMenu()) {
-    const embed = new EmbedBuilder().setTitle('Selected').setDescription(`**${interaction.values.join(', ')}**`).setColor(GREEN);
-    await interaction.update({ embeds: [embed], components: [] });
+    const components: A2UIComponent[] = [
+      { id: 'title', component: 'Text', text: 'Selected', variant: 'h1' },
+      { id: 'desc', component: 'Text', text: `**${interaction.values.join(', ')}**`, variant: 'body' },
+      { id: 'content', component: 'Column', children: ['title', 'desc'] },
+      { id: 'root', component: 'Card', child: 'content' },
+    ];
+    await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
   }
 });
 
 // === TEST RUNNER ===
 async function runTests(channel: TextChannel) {
-  testPhase = true;
   let passed = 0, failed = 0;
 
   async function testCommand(name: string, cmd: string, check: (msgs: Message[]) => boolean) {
     console.log(`\n[test] === ${name} ===`);
     const sent = await channel.send(cmd);
     console.log(`[test] Sent: ${cmd} (id: ${sent.id})`);
-    
-    // Wait for reply to appear
+
     await new Promise(r => setTimeout(r, 3000));
-    
-    // Fetch recent messages and find the reply
+
     const messages = await channel.messages.fetch({ after: sent.id, limit: 5 });
-    const replies = messages.filter(m => 
+    const replies = messages.filter(m =>
       m.author.id === botUserId && m.reference?.messageId === sent.id
     );
-    
+
     const allReplies = [...replies.values()];
     if (allReplies.length > 0 && check(allReplies)) {
       console.log(`[test] ✅ ${name} passed`);
@@ -151,10 +165,17 @@ async function runTests(channel: TextChannel) {
     }
   }
 
-  await testCommand('!help → embed', '!help', (msgs) => msgs[0].embeds.length > 0 && msgs[0].embeds[0].title?.includes('Demo Bot') === true);
-  await testCommand('!embed → fields', '!embed', (msgs) => msgs[0].embeds.length > 0 && msgs[0].embeds[0].fields.length >= 2);
-  await testCommand('!approve → buttons', '!approve', (msgs) => msgs[0].embeds.length > 0 && msgs[0].components.length > 0);
-  await testCommand('!kitchen-sink → all', '!kitchen-sink', (msgs) => msgs[0].embeds.length > 0 && msgs[0].components.length >= 2);
+  await testCommand('!help → embed with title', '!help', (msgs) =>
+    msgs[0].embeds.length > 0 && msgs[0].embeds.some(e => e.title?.includes('Demo Bot') === true));
+
+  await testCommand('!embed → embed with description', '!embed', (msgs) =>
+    msgs[0].embeds.length > 0 && msgs[0].embeds.some(e => e.title?.includes('Project Status') === true));
+
+  await testCommand('!approve → buttons (A2UI AUTHORIZE)', '!approve', (msgs) =>
+    msgs[0].embeds.length > 0 && msgs[0].components.length > 0);
+
+  await testCommand('!kitchen-sink → embeds + buttons + select', '!kitchen-sink', (msgs) =>
+    msgs[0].embeds.length > 0 && msgs[0].components.length >= 2);
 
   console.log(`\n[test] ════════════════════════`);
   console.log(`[test] Results: ${passed} passed, ${failed} failed`);
@@ -166,26 +187,26 @@ async function runTests(channel: TextChannel) {
 // === STARTUP ===
 client.once(Events.ClientReady, async (c) => {
   botUserId = c.user.id;
-  console.log(`[bot] Online as ${c.user.tag} (${botUserId})`);
+  console.log(`[bot] Online as ${c.user.tag} (${botUserId}) — A2UI-driven`);
 
   const channel = await c.channels.fetch(CHANNEL_ID) as TextChannel;
   if (!channel) { console.error('[test] Channel not found'); process.exit(1); }
 
-  // Announce
-  await channel.send('🧪 **a2discord live test starting...** Bot will send commands to itself and verify responses.');
+  await channel.send('🧪 **a2discord live test starting...** A2UI-driven — all responses rendered through A2UIRenderer.');
 
-  // Run tests
   const { passed, failed } = await runTests(channel);
 
-  // Post summary to Discord
-  const summaryEmbed = new EmbedBuilder()
-    .setTitle(`🧪 Test Results: ${passed}/${passed + failed} passed`)
-    .setColor(failed === 0 ? GREEN : RED)
-    .setDescription(failed === 0 ? 'All Discord rendering capabilities verified! ✅' : `${failed} test(s) failed — check logs.`)
-    .setTimestamp();
-  await channel.send({ embeds: [summaryEmbed] });
+  // Post summary
+  const components: A2UIComponent[] = [
+    { id: 'title', component: 'Text', text: `🧪 Test Results: ${passed}/${passed + failed} passed`, variant: 'h1' },
+    { id: 'desc', component: 'Text', text: failed === 0
+      ? 'All A2UI → Discord rendering verified! ✅\nEvery response was generated as A2UI JSON and rendered through A2UIRenderer.'
+      : `${failed} test(s) failed — check logs.`, variant: 'body' },
+    { id: 'content', component: 'Column', children: ['title', 'desc'] },
+    { id: 'root', component: 'Card', child: 'content' },
+  ];
+  await channel.send(a2ui(components, { intent: failed === 0 ? 'RESULT' : 'RESULT', success: failed === 0 }));
 
-  // Stay alive for 30s for Alan to interact with the buttons
   console.log('[test] Bot staying alive 30s for manual interaction...');
   setTimeout(() => { client.destroy(); process.exit(failed > 0 ? 1 : 0); }, 30000);
 });
