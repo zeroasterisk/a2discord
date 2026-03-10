@@ -112,7 +112,121 @@ export interface SSEEvent {
 
 export interface DiscordMessageOptions {
   content?: string;
-  embeds?: unknown[];
-  components?: unknown[];
-  files?: unknown[];
+  embeds?: any[];
+  components?: any[];
+  files?: any[];
+}
+
+// ─── A2UI v0.9 Wire Format Types ───
+
+export const DISCORD_CATALOG_ID = 'https://github.com/zeroasterisk/a2discord/catalog/v1/discord_catalog.json';
+
+/** A2UI v0.9 message — one of several message types */
+export interface A2UIMessage {
+  version: 'v0.9';
+  createSurface?: A2UICreateSurface;
+  updateComponents?: A2UIUpdateComponents;
+  updateDataModel?: A2UIUpdateDataModel;
+}
+
+export interface A2UICreateSurface {
+  surfaceId: string;
+  catalogId: string;
+}
+
+export interface A2UIUpdateComponents {
+  surfaceId: string;
+  components: DiscordComponent[];
+}
+
+export interface A2UIUpdateDataModel {
+  surfaceId: string;
+  path?: string;
+  value?: unknown;
+}
+
+// ─── Discord Catalog Component Types ───
+
+export type DiscordComponent =
+  | DiscordMessageComponent
+  | DiscordEmbedComponent
+  | DiscordActionRowComponent
+  | DiscordButtonComponent
+  | DiscordSelectMenuComponent
+  | DiscordModalComponent
+  | DiscordTextInputComponent;
+
+interface ComponentBase {
+  id: string;
+  component: string;
+}
+
+export interface DiscordMessageComponent extends ComponentBase {
+  component: 'DiscordMessage';
+  content?: string;
+  embeds?: DiscordEmbedComponent[];
+  components?: DiscordActionRowComponent[];
+  ephemeral?: boolean;
+}
+
+export interface DiscordEmbedComponent extends ComponentBase {
+  component: 'DiscordEmbed';
+  title?: string;
+  description?: string;
+  color?: string;
+  fields?: { name: string; value: string; inline?: boolean }[];
+  thumbnail?: string;
+  image?: string;
+  footer?: string;
+  timestamp?: boolean;
+}
+
+export interface DiscordActionRowComponent extends ComponentBase {
+  component: 'DiscordActionRow';
+  children: (DiscordButtonComponent | DiscordSelectMenuComponent)[];
+}
+
+export interface DiscordButtonComponent extends ComponentBase {
+  component: 'DiscordButton';
+  label: string;
+  style?: 'primary' | 'secondary' | 'success' | 'danger' | 'link';
+  customId?: string;
+  url?: string;
+  emoji?: string;
+  disabled?: boolean;
+}
+
+export interface DiscordSelectMenuComponent extends ComponentBase {
+  component: 'DiscordSelectMenu';
+  customId: string;
+  placeholder?: string;
+  minValues?: number;
+  maxValues?: number;
+  options: { label: string; value: string; description?: string; emoji?: string; default?: boolean }[];
+}
+
+export interface DiscordModalComponent extends ComponentBase {
+  component: 'DiscordModal';
+  title: string;
+  customId: string;
+  fields: DiscordTextInputComponent[];
+}
+
+export interface DiscordTextInputComponent extends ComponentBase {
+  component: 'DiscordTextInput';
+  customId: string;
+  label: string;
+  style?: 'short' | 'paragraph';
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  minLength?: number;
+  maxLength?: number;
+}
+
+// ─── Renderer Result Types ───
+
+export interface DiscordRenderResult {
+  messages: DiscordMessageOptions[];
+  modals: unknown[]; // ModalBuilder instances
 }

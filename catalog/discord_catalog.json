@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zeroasterisk/a2discord/catalog/v1/discord_catalog.json",
+  "title": "A2UI Discord Catalog",
+  "description": "Discord-native A2UI component catalog. Components map directly to Discord primitives (embeds, buttons, select menus, modals, action rows).",
+  "catalogId": "https://github.com/zeroasterisk/a2discord/catalog/v1/discord_catalog.json",
+  "components": {
+    "DiscordMessage": {
+      "type": "object",
+      "description": "Top-level Discord message container. Maps to discord.js MessageCreateOptions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordMessage"
+        },
+        "content": {
+          "type": "string",
+          "description": "Plain text message content (max 2000 chars)."
+        },
+        "embeds": {
+          "type": "array",
+          "description": "Array of DiscordEmbed components (max 10).",
+          "items": { "$ref": "#/components/DiscordEmbed" },
+          "maxItems": 10
+        },
+        "components": {
+          "type": "array",
+          "description": "Array of DiscordActionRow components (max 5).",
+          "items": { "$ref": "#/components/DiscordActionRow" },
+          "maxItems": 5
+        },
+        "ephemeral": {
+          "type": "boolean",
+          "description": "If true, only the invoking user can see the message.",
+          "default": false
+        }
+      },
+      "required": ["id", "component"],
+      "additionalProperties": false
+    },
+    "DiscordEmbed": {
+      "type": "object",
+      "description": "Discord rich embed. Maps to discord.js EmbedBuilder.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordEmbed"
+        },
+        "title": {
+          "type": "string",
+          "description": "Embed title (max 256 chars).",
+          "maxLength": 256
+        },
+        "description": {
+          "type": "string",
+          "description": "Embed description. Supports Discord markdown (max 4096 chars).",
+          "maxLength": 4096
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex color string (e.g. '#3498db').",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "fields": {
+          "type": "array",
+          "description": "Embed fields (max 25).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "Field name (max 256 chars).", "maxLength": 256 },
+              "value": { "type": "string", "description": "Field value (max 1024 chars).", "maxLength": 1024 },
+              "inline": { "type": "boolean", "description": "Display field inline.", "default": false }
+            },
+            "required": ["name", "value"],
+            "additionalProperties": false
+          },
+          "maxItems": 25
+        },
+        "thumbnail": {
+          "type": "string",
+          "description": "Thumbnail image URL.",
+          "format": "uri"
+        },
+        "image": {
+          "type": "string",
+          "description": "Large image URL.",
+          "format": "uri"
+        },
+        "footer": {
+          "type": "string",
+          "description": "Footer text (max 2048 chars).",
+          "maxLength": 2048
+        },
+        "timestamp": {
+          "type": "boolean",
+          "description": "If true, display current timestamp in footer.",
+          "default": false
+        }
+      },
+      "required": ["id", "component"],
+      "additionalProperties": false
+    },
+    "DiscordActionRow": {
+      "type": "object",
+      "description": "Container for buttons or a select menu. Maps to discord.js ActionRowBuilder. Max 5 buttons or 1 select menu per row.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordActionRow"
+        },
+        "children": {
+          "type": "array",
+          "description": "Array of DiscordButton or DiscordSelectMenu components.",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/components/DiscordButton" },
+              { "$ref": "#/components/DiscordSelectMenu" }
+            ]
+          },
+          "maxItems": 5
+        }
+      },
+      "required": ["id", "component", "children"],
+      "additionalProperties": false
+    },
+    "DiscordButton": {
+      "type": "object",
+      "description": "Discord button. Maps to discord.js ButtonBuilder.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordButton"
+        },
+        "label": {
+          "type": "string",
+          "description": "Button label text (max 80 chars).",
+          "maxLength": 80
+        },
+        "style": {
+          "type": "string",
+          "description": "Button style.",
+          "enum": ["primary", "secondary", "success", "danger", "link"],
+          "default": "secondary"
+        },
+        "customId": {
+          "type": "string",
+          "description": "Custom ID for interaction handling (required for non-link buttons)."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL for link-style buttons.",
+          "format": "uri"
+        },
+        "emoji": {
+          "type": "string",
+          "description": "Emoji to display on the button."
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Whether the button is disabled.",
+          "default": false
+        }
+      },
+      "required": ["id", "component", "label"],
+      "additionalProperties": false
+    },
+    "DiscordSelectMenu": {
+      "type": "object",
+      "description": "Discord string select menu. Maps to discord.js StringSelectMenuBuilder.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordSelectMenu"
+        },
+        "customId": {
+          "type": "string",
+          "description": "Custom ID for interaction handling."
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Placeholder text when nothing is selected.",
+          "maxLength": 150
+        },
+        "minValues": {
+          "type": "integer",
+          "description": "Minimum number of selections.",
+          "minimum": 0,
+          "default": 1
+        },
+        "maxValues": {
+          "type": "integer",
+          "description": "Maximum number of selections.",
+          "minimum": 1,
+          "default": 1
+        },
+        "options": {
+          "type": "array",
+          "description": "Select menu options (max 25).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string", "description": "Option label.", "maxLength": 100 },
+              "value": { "type": "string", "description": "Option value.", "maxLength": 100 },
+              "description": { "type": "string", "description": "Option description.", "maxLength": 100 },
+              "emoji": { "type": "string", "description": "Option emoji." },
+              "default": { "type": "boolean", "description": "Whether this option is selected by default." }
+            },
+            "required": ["label", "value"],
+            "additionalProperties": false
+          },
+          "maxItems": 25
+        }
+      },
+      "required": ["id", "component", "customId", "options"],
+      "additionalProperties": false
+    },
+    "DiscordModal": {
+      "type": "object",
+      "description": "Discord modal dialog. Maps to discord.js ModalBuilder. Triggered by button interactions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordModal"
+        },
+        "title": {
+          "type": "string",
+          "description": "Modal title (max 45 chars).",
+          "maxLength": 45
+        },
+        "customId": {
+          "type": "string",
+          "description": "Custom ID for modal submission handling."
+        },
+        "fields": {
+          "type": "array",
+          "description": "Array of DiscordTextInput components (max 5).",
+          "items": { "$ref": "#/components/DiscordTextInput" },
+          "maxItems": 5
+        }
+      },
+      "required": ["id", "component", "title", "customId", "fields"],
+      "additionalProperties": false
+    },
+    "DiscordTextInput": {
+      "type": "object",
+      "description": "Text input field for Discord modals. Maps to discord.js TextInputBuilder.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component identifier."
+        },
+        "component": {
+          "const": "DiscordTextInput"
+        },
+        "customId": {
+          "type": "string",
+          "description": "Custom ID for accessing the input value."
+        },
+        "label": {
+          "type": "string",
+          "description": "Input label (max 45 chars).",
+          "maxLength": 45
+        },
+        "style": {
+          "type": "string",
+          "description": "Input style.",
+          "enum": ["short", "paragraph"],
+          "default": "short"
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Placeholder text.",
+          "maxLength": 100
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the input is required.",
+          "default": true
+        },
+        "value": {
+          "type": "string",
+          "description": "Pre-filled value."
+        },
+        "minLength": {
+          "type": "integer",
+          "description": "Minimum input length.",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "description": "Maximum input length.",
+          "maximum": 4000
+        }
+      },
+      "required": ["id", "component", "customId", "label"],
+      "additionalProperties": false
+    }
+  }
+}

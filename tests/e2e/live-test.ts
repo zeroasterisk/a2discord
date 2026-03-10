@@ -1,16 +1,17 @@
 /**
- * Live integration test — single bot that sends commands to itself and verifies responses.
- * Now A2UI-driven: all responses go through A2UIRenderer.
+ * Live integration test — A2UI v0.9 Discord catalog.
+ * Single bot that sends commands to itself and verifies responses.
  */
 import {
-  Client, GatewayIntentBits, Events, EmbedBuilder, ActionRowBuilder,
-  ButtonBuilder, ButtonStyle, StringSelectMenuBuilder,
-  ModalBuilder, TextInputBuilder, TextInputStyle,
+  Client, GatewayIntentBits, Events,
+  ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle,
   type TextChannel, type Message, type ButtonInteraction,
   type StringSelectMenuInteraction, type ModalSubmitInteraction,
   ChannelType,
 } from 'discord.js';
-import { A2UIRenderer, type A2UIComponent } from '../../src/rendering/a2ui-renderer';
+import { DiscordCatalogRenderer } from '../../src/rendering/a2ui-renderer';
+import type { A2UIMessage, DiscordMessageComponent, DiscordMessageOptions } from '../../src/types';
+import { DISCORD_CATALOG_ID } from '../../src/types';
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN || process.env.A2DISCORD_BOT_TOKEN;
 if (!BOT_TOKEN) { console.error('Set DISCORD_TOKEN or A2DISCORD_BOT_TOKEN'); process.exit(1); }
@@ -20,118 +21,154 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
-const renderer = new A2UIRenderer();
+const renderer = new DiscordCatalogRenderer();
 let botUserId = '';
 
-function a2ui(components: A2UIComponent[], metadata?: Record<string, unknown>) {
-  return renderer.render(components, metadata);
+function createA2UIMessages(surfaceId: string, root: DiscordMessageComponent): A2UIMessage[] {
+  return [
+    { version: 'v0.9', createSurface: { surfaceId, catalogId: DISCORD_CATALOG_ID } },
+    { version: 'v0.9', updateComponents: { surfaceId, components: [root] } },
+  ];
 }
 
-// === COMMAND HANDLERS (A2UI-driven) ===
+function renderMsg(surfaceId: string, root: DiscordMessageComponent): DiscordMessageOptions {
+  return renderer.renderFirstMessage(createA2UIMessages(surfaceId, root));
+}
+
+// === COMMAND HANDLERS ===
 const commands: Record<string, (msg: Message) => Promise<void>> = {
   help: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🤖 a2discord Demo Bot', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'A2UI-driven demo — all responses rendered through A2UIRenderer.', variant: 'body' },
-      { id: 'cmds', component: 'Text', text: '`!embed` — Rich embed\n`!approve` — Approve/deny\n`!kitchen-sink` — Everything', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'cmds'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    await msg.reply(renderMsg('help', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'help-embed', component: 'DiscordEmbed',
+        title: '🤖 a2discord Demo Bot',
+        description: 'A2UI v0.9 Discord Catalog — all responses use Discord-native components.\n\n`!embed` — Rich embed\n`!approve` — Approve/deny\n`!kitchen-sink` — Everything\n`!a2ui-raw` — Wire format JSON',
+        color: '#3498db',
+      }],
+    }));
   },
   embed: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '📊 Project Status', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'A2H INFORM intent rendered as embed', variant: 'body' },
-      { id: 'f1', component: 'Text', text: 'Project: a2discord', variant: 'body' },
-      { id: 'f2', component: 'Text', text: 'Status: 🟢 On Track', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1', 'f2'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    await msg.reply(renderMsg('embed', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'status', component: 'DiscordEmbed',
+        title: '📊 Project Status',
+        description: 'A2UI v0.9 Discord catalog rendering',
+        color: '#3498db',
+        fields: [
+          { name: 'Project', value: 'a2discord', inline: true },
+          { name: 'Status', value: '🟢 On Track', inline: true },
+        ],
+      }],
+    }));
   },
   approve: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🔐 Authorization Required', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'Deploy to production?', variant: 'body' },
-      { id: 'f1', component: 'Text', text: 'Service: `a2discord-prod`', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'AUTHORIZE' }));
+    await msg.reply(renderMsg('approve', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'auth', component: 'DiscordEmbed',
+        title: '🔐 Authorization Required',
+        description: 'Deploy to production?',
+        color: '#e67e22',
+        fields: [{ name: 'Service', value: '`a2discord-prod`', inline: true }],
+      }],
+      components: [{
+        id: 'row', component: 'DiscordActionRow',
+        children: [
+          { id: 'approve-btn', component: 'DiscordButton', label: '✅ Approve', style: 'success', customId: 'a2ui-approve' },
+          { id: 'deny-btn', component: 'DiscordButton', label: '❌ Deny', style: 'danger', customId: 'a2ui-deny' },
+        ],
+      }],
+    }));
   },
   'kitchen-sink': async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🍳 Kitchen Sink', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: '**Bold**, *italic*, `code`', variant: 'body' },
-      { id: 'f1', component: 'Text', text: 'Field 1: Value', variant: 'body' },
-      { id: 'f2', component: 'Text', text: 'Field 2: Value', variant: 'body' },
-      { id: 'approve-label', component: 'Text', text: '✅ Approve' },
-      { id: 'approve-btn', component: 'Button', child: 'approve-label', variant: 'success', action: { event: { name: 'approve' } } },
-      { id: 'deny-label', component: 'Text', text: '❌ Deny' },
-      { id: 'deny-btn', component: 'Button', child: 'deny-label', variant: 'danger', action: { event: { name: 'deny' } } },
-      { id: 'btn-row', component: 'Row', children: ['approve-btn', 'deny-btn'] },
-      {
-        id: 'ks-select', component: 'ChoicePicker',
-        options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }],
-        maxAllowedSelections: 1,
-      },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'f1', 'f2', 'btn-row', 'ks-select'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    await msg.reply(renderMsg('kitchen-sink', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'ks', component: 'DiscordEmbed',
+        title: '🍳 Kitchen Sink',
+        description: '**Bold**, *italic*, `code`',
+        color: '#3498db',
+        fields: [
+          { name: 'Field 1', value: 'Value', inline: true },
+          { name: 'Field 2', value: 'Value', inline: true },
+        ],
+      }],
+      components: [
+        {
+          id: 'btn-row', component: 'DiscordActionRow',
+          children: [
+            { id: 'b1', component: 'DiscordButton', label: '✅ Approve', style: 'success', customId: 'a2ui-approve' },
+            { id: 'b2', component: 'DiscordButton', label: '❌ Deny', style: 'danger', customId: 'a2ui-deny' },
+          ],
+        },
+        {
+          id: 'select-row', component: 'DiscordActionRow',
+          children: [{
+            id: 'sel', component: 'DiscordSelectMenu',
+            customId: 'ks-select',
+            options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }],
+          }],
+        },
+      ],
+    }));
+  },
+  'a2ui-raw': async (msg) => {
+    const a2ui = createA2UIMessages('raw-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'raw', component: 'DiscordEmbed',
+        title: '🔍 A2UI v0.9 Wire Format',
+        description: 'Discord catalog components',
+        color: '#3498db',
+      }],
+      components: [{
+        id: 'row', component: 'DiscordActionRow',
+        children: [
+          { id: 'btn', component: 'DiscordButton', label: 'Example', style: 'primary', customId: 'raw-example' },
+        ],
+      }],
+    });
+    const json = JSON.stringify(a2ui, null, 2);
+    await msg.reply(`**A2UI v0.9 Wire Format:**\n\`\`\`json\n${json.slice(0, 1800)}\n\`\`\``);
+    await (msg.channel as TextChannel).send({ content: '**Rendered:**', ...renderer.renderFirstMessage(a2ui) });
   },
 };
 
-// Handle commands — including from self
+// Handle commands
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.channelId !== CHANNEL_ID) return;
   const content = msg.content.trim();
   if (!content.startsWith('!')) return;
   const cmd = content.slice(1).split(/\s+/)[0].toLowerCase();
   if (msg.reference) return;
-
   if (commands[cmd]) {
-    console.log(`[bot] Handling !${cmd} from ${msg.author.username} (${msg.author.id})`);
-    try {
-      await commands[cmd](msg);
-      console.log(`[bot] ✅ Replied to !${cmd}`);
-    } catch (err) {
-      console.error(`[bot] ❌ Error on !${cmd}:`, (err as Error).message);
-    }
+    try { await commands[cmd](msg); } catch (err) { console.error(`[bot] ❌ !${cmd}:`, (err as Error).message); }
   }
 });
 
-// Handle button interactions
+// Handle interactions
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton()) {
     const id = interaction.customId;
     if (id.includes('approve')) {
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '✅ Approved', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `Approved by <@${interaction.user.id}>`, variant: 'body' },
-        { id: 'content', component: 'Column', children: ['title', 'desc'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
+      await interaction.update({ ...renderMsg('approved', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{ id: 'r', component: 'DiscordEmbed', title: '✅ Approved', description: `By <@${interaction.user.id}>`, color: '#2ecc71' }],
+      }), components: [] });
     } else if (id.includes('deny')) {
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '❌ Denied', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `Denied by <@${interaction.user.id}>`, variant: 'body' },
-        { id: 'content', component: 'Column', children: ['title', 'desc'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: false }), components: [] });
+      await interaction.update({ ...renderMsg('denied', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{ id: 'r', component: 'DiscordEmbed', title: '❌ Denied', description: `By <@${interaction.user.id}>`, color: '#e74c3c' }],
+      }), components: [] });
     }
   }
   if (interaction.isStringSelectMenu()) {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: 'Selected', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: `**${interaction.values.join(', ')}**`, variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await interaction.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
+    await interaction.update({ ...renderMsg('selected', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{ id: 'r', component: 'DiscordEmbed', title: 'Selected', description: `**${interaction.values.join(', ')}**`, color: '#2ecc71' }],
+    }), components: [] });
   }
 });
 
@@ -142,21 +179,14 @@ async function runTests(channel: TextChannel) {
   async function testCommand(name: string, cmd: string, check: (msgs: Message[]) => boolean) {
     console.log(`\n[test] === ${name} ===`);
     const sent = await channel.send(cmd);
-    console.log(`[test] Sent: ${cmd} (id: ${sent.id})`);
-
     await new Promise(r => setTimeout(r, 3000));
-
     const messages = await channel.messages.fetch({ after: sent.id, limit: 5 });
-    const replies = messages.filter(m =>
-      m.author.id === botUserId && m.reference?.messageId === sent.id
-    );
-
+    const replies = messages.filter(m => m.author.id === botUserId && m.reference?.messageId === sent.id);
     const allReplies = [...replies.values()];
     if (allReplies.length > 0 && check(allReplies)) {
-      console.log(`[test] ✅ ${name} passed`);
-      passed++;
+      console.log(`[test] ✅ ${name}`); passed++;
     } else {
-      console.log(`[test] ❌ ${name} failed — got ${allReplies.length} replies`);
+      console.log(`[test] ❌ ${name} — ${allReplies.length} replies`);
       if (allReplies.length > 0) {
         const r = allReplies[0];
         console.log(`[test]   content: "${r.content}", embeds: ${r.embeds.length}, components: ${r.components.length}`);
@@ -165,49 +195,51 @@ async function runTests(channel: TextChannel) {
     }
   }
 
-  await testCommand('!help → embed with title', '!help', (msgs) =>
+  await testCommand('!help → embed', '!help', (msgs) =>
     msgs[0].embeds.length > 0 && msgs[0].embeds.some(e => e.title?.includes('Demo Bot') === true));
 
-  await testCommand('!embed → embed with description', '!embed', (msgs) =>
+  await testCommand('!embed → embed with fields', '!embed', (msgs) =>
     msgs[0].embeds.length > 0 && msgs[0].embeds.some(e => e.title?.includes('Project Status') === true));
 
-  await testCommand('!approve → buttons (A2UI AUTHORIZE)', '!approve', (msgs) =>
+  await testCommand('!approve → buttons', '!approve', (msgs) =>
     msgs[0].embeds.length > 0 && msgs[0].components.length > 0);
 
   await testCommand('!kitchen-sink → embeds + buttons + select', '!kitchen-sink', (msgs) =>
     msgs[0].embeds.length > 0 && msgs[0].components.length >= 2);
 
+  await testCommand('!a2ui-raw → wire format JSON', '!a2ui-raw', (msgs) =>
+    msgs[0].content.includes('v0.9') || msgs[0].content.includes('Wire Format'));
+
   console.log(`\n[test] ════════════════════════`);
   console.log(`[test] Results: ${passed} passed, ${failed} failed`);
   console.log(`[test] ════════════════════════`);
-
   return { passed, failed };
 }
 
 // === STARTUP ===
 client.once(Events.ClientReady, async (c) => {
   botUserId = c.user.id;
-  console.log(`[bot] Online as ${c.user.tag} (${botUserId}) — A2UI-driven`);
+  console.log(`[bot] Online as ${c.user.tag} (${botUserId}) — A2UI v0.9 Discord Catalog`);
 
   const channel = await c.channels.fetch(CHANNEL_ID) as TextChannel;
   if (!channel) { console.error('[test] Channel not found'); process.exit(1); }
 
-  await channel.send('🧪 **a2discord live test starting...** A2UI-driven — all responses rendered through A2UIRenderer.');
-
+  await channel.send('🧪 **a2discord live test** — A2UI v0.9 Discord Catalog');
   const { passed, failed } = await runTests(channel);
 
-  // Post summary
-  const components: A2UIComponent[] = [
-    { id: 'title', component: 'Text', text: `🧪 Test Results: ${passed}/${passed + failed} passed`, variant: 'h1' },
-    { id: 'desc', component: 'Text', text: failed === 0
-      ? 'All A2UI → Discord rendering verified! ✅\nEvery response was generated as A2UI JSON and rendered through A2UIRenderer.'
-      : `${failed} test(s) failed — check logs.`, variant: 'body' },
-    { id: 'content', component: 'Column', children: ['title', 'desc'] },
-    { id: 'root', component: 'Card', child: 'content' },
-  ];
-  await channel.send(a2ui(components, { intent: failed === 0 ? 'RESULT' : 'RESULT', success: failed === 0 }));
+  await channel.send(renderer.renderFirstMessage(createA2UIMessages('results', {
+    id: 'root', component: 'DiscordMessage',
+    embeds: [{
+      id: 'result', component: 'DiscordEmbed',
+      title: `🧪 Test Results: ${passed}/${passed + failed} passed`,
+      description: failed === 0
+        ? 'All Discord catalog rendering verified! ✅'
+        : `${failed} test(s) failed — check logs.`,
+      color: failed === 0 ? '#2ecc71' : '#e74c3c',
+    }],
+  })));
 
-  console.log('[test] Bot staying alive 30s for manual interaction...');
+  console.log('[test] Bot staying alive 30s...');
   setTimeout(() => { client.destroy(); process.exit(failed > 0 ? 1 : 0); }, 30000);
 });
 

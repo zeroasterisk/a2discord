@@ -1,24 +1,23 @@
 /**
- * demo-bot.ts — A2UI-driven demo bot for exercising Discord capabilities.
+ * demo-bot.ts — Discord catalog A2UI demo bot.
  *
- * All responses are now generated as A2UI component JSON and rendered through
- * the A2UIRenderer. This proves the renderer works end-to-end.
+ * All responses are A2UI v0.9 wire format using the Discord catalog,
+ * rendered through DiscordCatalogRenderer.
  *
  * Commands (prefix with !):
  *   !help          — list all commands
- *   !embed         — basic embed with fields
+ *   !embed         — rich embed with fields
  *   !buttons       — action row with buttons
- *   !approve       — authorization flow (approve/deny buttons)
+ *   !approve       — authorization flow (approve/deny)
  *   !modal         — button that opens a modal form
  *   !select        — select menu
- *   !thread        — create a thread with structured content
- *   !cards         — multiple embeds (card layout)
- *   !status        — status update with color-coded embed
+ *   !cards         — multiple embeds
+ *   !status        — color-coded status
  *   !error         — error embed
  *   !code          — code block in embed
- *   !progress      — simulated progress with message edits
+ *   !progress      — simulated progress
  *   !kitchen-sink  — everything at once
- *   !a2ui-raw      — dump raw A2UI JSON alongside rendered output
+ *   !a2ui-raw      — dump raw v0.9 wire format JSON
  *
  * Run: DISCORD_TOKEN=... bun run src/sample/demo-bot.ts
  */
@@ -27,11 +26,8 @@ import {
   Client,
   GatewayIntentBits,
   Events,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   ModalBuilder,
+  ActionRowBuilder,
   TextInputBuilder,
   TextInputStyle,
   ChannelType,
@@ -41,7 +37,19 @@ import {
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { A2UIRenderer, type A2UIComponent } from '../rendering/a2ui-renderer.js';
+import { DiscordCatalogRenderer } from '../rendering/a2ui-renderer.js';
+import type {
+  A2UIMessage,
+  DiscordMessageOptions,
+  DiscordMessageComponent,
+  DiscordEmbedComponent,
+  DiscordActionRowComponent,
+  DiscordButtonComponent,
+  DiscordSelectMenuComponent,
+  DiscordModalComponent,
+  DiscordTextInputComponent,
+} from '../types.js';
+import { DISCORD_CATALOG_ID } from '../types.js';
 
 const TOKEN = process.env.DISCORD_TOKEN || process.env.A2DISCORD_BOT_TOKEN;
 if (!TOKEN) {
@@ -59,206 +67,255 @@ const client = new Client({
   ],
 });
 
-const renderer = new A2UIRenderer();
+const renderer = new DiscordCatalogRenderer();
 
-// ─── Colors ───
-const BLUE = 0x3498db;
-const GREEN = 0x2ecc71;
-const RED = 0xe74c3c;
-const ORANGE = 0xe67e22;
-const PURPLE = 0x9b59b6;
-const GOLD = 0xf1c40f;
+// ─── Helper to build v0.9 messages ───
 
-// ─── A2UI builders ───
+function createA2UIMessages(surfaceId: string, rootComponent: DiscordMessageComponent): A2UIMessage[] {
+  return [
+    {
+      version: 'v0.9',
+      createSurface: { surfaceId, catalogId: DISCORD_CATALOG_ID },
+    },
+    {
+      version: 'v0.9',
+      updateComponents: { surfaceId, components: [rootComponent] },
+    },
+  ];
+}
 
-function a2ui(
-  components: A2UIComponent[],
-  metadata?: Record<string, unknown>,
-): any {
-  return renderer.render(components, metadata) as any;
+function renderMessages(msgs: A2UIMessage[]): DiscordMessageOptions {
+  return renderer.renderFirstMessage(msgs);
 }
 
 // ─── Command handlers ───
 
 const commands: Record<string, (msg: Message) => Promise<void>> = {
   help: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🤖 a2discord Demo Bot', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'A2UI-driven demo — all responses rendered through A2UIRenderer.\nNo hardcoded Discord primitives.', variant: 'body' },
-      { id: 'embed-cmd', component: 'Text', text: '`!embed` — Rich embed with fields', variant: 'body' },
-      { id: 'buttons-cmd', component: 'Text', text: '`!buttons` — Action row with buttons', variant: 'body' },
-      { id: 'approve-cmd', component: 'Text', text: '`!approve` — Approve/deny flow', variant: 'body' },
-      { id: 'modal-cmd', component: 'Text', text: '`!modal` — Button → modal form', variant: 'body' },
-      { id: 'select-cmd', component: 'Text', text: '`!select` — Select menu', variant: 'body' },
-      { id: 'cards-cmd', component: 'Text', text: '`!cards` — Multiple embeds', variant: 'body' },
-      { id: 'status-cmd', component: 'Text', text: '`!status` — Color-coded status', variant: 'body' },
-      { id: 'error-cmd', component: 'Text', text: '`!error` — Error embed', variant: 'body' },
-      { id: 'ks-cmd', component: 'Text', text: '`!kitchen-sink` — Everything', variant: 'body' },
-      { id: 'raw-cmd', component: 'Text', text: '`!a2ui-raw` — Show raw A2UI JSON', variant: 'body' },
-      { id: 'footer', component: 'Text', text: 'Powered by A2UI → Discord renderer', variant: 'caption' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'embed-cmd', 'buttons-cmd', 'approve-cmd', 'modal-cmd', 'select-cmd', 'cards-cmd', 'status-cmd', 'error-cmd', 'ks-cmd', 'raw-cmd', 'footer'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    const a2ui = createA2UIMessages('help', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'help-embed', component: 'DiscordEmbed',
+        title: '🤖 a2discord Demo Bot',
+        description: 'A2UI v0.9 Discord catalog — all responses use Discord-native components.\n\n' +
+          '`!embed` — Rich embed with fields\n' +
+          '`!buttons` — Action row with buttons\n' +
+          '`!approve` — Approve/deny flow\n' +
+          '`!modal` — Button → modal form\n' +
+          '`!select` — Select menu\n' +
+          '`!cards` — Multiple embeds\n' +
+          '`!status` — Color-coded status\n' +
+          '`!error` — Error embed\n' +
+          '`!code` — Code block\n' +
+          '`!kitchen-sink` — Everything\n' +
+          '`!a2ui-raw` — Show raw v0.9 JSON',
+        color: '#3498db',
+        footer: 'Powered by A2UI v0.9 Discord Catalog',
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   embed: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '📊 Project Status', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: "Here's a structured info embed — this is what **A2H INFORM** would render as.", variant: 'body' },
-      { id: 'f-project', component: 'Text', text: 'Project: a2discord', variant: 'body' },
-      { id: 'f-phase', component: 'Text', text: 'Phase: 1 — MVP', variant: 'body' },
-      { id: 'f-status', component: 'Text', text: 'Status: 🟢 On Track', variant: 'body' },
-      { id: 'footer', component: 'Text', text: 'A2H Intent: INFORM', variant: 'caption' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'f-project', 'f-phase', 'f-status', 'footer'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    const a2ui = createA2UIMessages('embed-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'status-embed', component: 'DiscordEmbed',
+        title: '📊 Project Status',
+        description: "Here's a structured info embed — this is what an agent would compose using the Discord catalog.",
+        color: '#3498db',
+        fields: [
+          { name: 'Project', value: 'a2discord', inline: true },
+          { name: 'Phase', value: '1 — MVP', inline: true },
+          { name: 'Status', value: '🟢 On Track', inline: true },
+        ],
+        footer: 'Discord Catalog • DiscordEmbed',
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   buttons: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'primary-label', component: 'Text', text: 'Primary' },
-      { id: 'primary-btn', component: 'Button', child: 'primary-label', variant: 'primary', action: { event: { name: 'primary' } } },
-      { id: 'secondary-label', component: 'Text', text: 'Secondary' },
-      { id: 'secondary-btn', component: 'Button', child: 'secondary-label', action: { event: { name: 'secondary' } } },
-      { id: 'success-label', component: 'Text', text: 'Success' },
-      { id: 'success-btn', component: 'Button', child: 'success-label', variant: 'success', action: { event: { name: 'success' } } },
-      { id: 'danger-label', component: 'Text', text: 'Danger' },
-      { id: 'danger-btn', component: 'Button', child: 'danger-label', variant: 'danger', action: { event: { name: 'danger' } } },
-      { id: 'row', component: 'Row', children: ['primary-btn', 'secondary-btn', 'success-btn', 'danger-btn'] },
-      { id: 'title', component: 'Text', text: 'Button styles available in Discord:', variant: 'body' },
-      { id: 'root', component: 'Column', children: ['title', 'row'] },
-    ];
-    await msg.reply(a2ui(components));
+    const a2ui = createA2UIMessages('buttons-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'btn-embed', component: 'DiscordEmbed',
+        title: '🔘 Button Styles',
+        description: 'All Discord button styles available in the catalog:',
+        color: '#3498db',
+      }],
+      components: [{
+        id: 'btn-row', component: 'DiscordActionRow',
+        children: [
+          { id: 'primary-btn', component: 'DiscordButton', label: 'Primary', style: 'primary', customId: 'demo-primary' },
+          { id: 'secondary-btn', component: 'DiscordButton', label: 'Secondary', style: 'secondary', customId: 'demo-secondary' },
+          { id: 'success-btn', component: 'DiscordButton', label: 'Success', style: 'success', customId: 'demo-success' },
+          { id: 'danger-btn', component: 'DiscordButton', label: 'Danger', style: 'danger', customId: 'demo-danger' },
+        ],
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   approve: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🔐 Authorization Required', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'The agent wants to **deploy to production**.\n\nThis will push `v0.2.0` to Cloud Run and update DNS.', variant: 'body' },
-      { id: 'f-service', component: 'Text', text: 'Service: `a2discord-prod`', variant: 'body' },
-      { id: 'f-region', component: 'Text', text: 'Region: `us-central1`', variant: 'body' },
-      { id: 'f-risk', component: 'Text', text: 'Risk: ⚠️ Medium', variant: 'body' },
-      { id: 'footer', component: 'Text', text: 'A2H Intent: AUTHORIZE', variant: 'caption' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'f-service', 'f-region', 'f-risk', 'footer'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'AUTHORIZE' }));
+    const a2ui = createA2UIMessages('approve-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'auth-embed', component: 'DiscordEmbed',
+        title: '🔐 Authorization Required',
+        description: 'The agent wants to **deploy to production**.\n\nThis will push `v0.2.0` to Cloud Run and update DNS.',
+        color: '#e67e22',
+        fields: [
+          { name: 'Service', value: '`a2discord-prod`', inline: true },
+          { name: 'Region', value: '`us-central1`', inline: true },
+          { name: 'Risk', value: '⚠️ Medium', inline: true },
+        ],
+        footer: 'Discord Catalog • AUTHORIZE intent',
+      }],
+      components: [{
+        id: 'auth-row', component: 'DiscordActionRow',
+        children: [
+          { id: 'approve-btn', component: 'DiscordButton', label: '✅ Approve', style: 'success', customId: 'a2ui-approve' },
+          { id: 'deny-btn', component: 'DiscordButton', label: '❌ Deny', style: 'danger', customId: 'a2ui-deny' },
+        ],
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   modal: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '📝 Input Required', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'Click the button below to provide project details via a modal form.', variant: 'body' },
-      { id: 'name-field', component: 'TextField', label: 'Project Name', textFieldType: 'shortText' },
-      { id: 'desc-field', component: 'TextField', label: 'Description', textFieldType: 'longText' },
-      { id: 'priority-field', component: 'TextField', label: 'Priority (low/medium/high)', textFieldType: 'shortText' },
-      { id: 'footer', component: 'Text', text: 'A2H Intent: COLLECT', variant: 'caption' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'name-field', 'desc-field', 'priority-field', 'footer'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'COLLECT' }));
+    const a2ui = createA2UIMessages('modal-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'modal-embed', component: 'DiscordEmbed',
+        title: '📝 Input Required',
+        description: 'Click the button below to provide project details via a modal form.',
+        color: '#e67e22',
+        footer: 'Discord Catalog • COLLECT intent',
+      }],
+      components: [{
+        id: 'modal-row', component: 'DiscordActionRow',
+        children: [
+          { id: 'open-modal-btn', component: 'DiscordButton', label: '📝 Provide Info', style: 'primary', customId: 'a2ui-collect-respond' },
+        ],
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   select: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: 'Select deployment target:', variant: 'body' },
-      {
-        id: 'deploy-select', component: 'ChoicePicker',
-        options: [
-          { label: 'Development', value: 'dev', description: 'Deploy to dev environment' },
-          { label: 'Staging', value: 'staging', description: 'Deploy to staging' },
-          { label: 'Production', value: 'prod', description: 'Deploy to production' },
-          { label: 'Canary', value: 'canary', description: '5% traffic canary' },
-        ],
-        maxAllowedSelections: 1,
-      },
-      { id: 'root', component: 'Column', children: ['title', 'deploy-select'] },
-    ];
-    await msg.reply(a2ui(components));
+    const a2ui = createA2UIMessages('select-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'select-embed', component: 'DiscordEmbed',
+        title: '🎯 Deployment Target',
+        description: 'Select where to deploy:',
+        color: '#3498db',
+      }],
+      components: [{
+        id: 'select-row', component: 'DiscordActionRow',
+        children: [{
+          id: 'deploy-select', component: 'DiscordSelectMenu',
+          customId: 'deploy-target',
+          placeholder: 'Choose deployment target...',
+          options: [
+            { label: 'Development', value: 'dev', description: 'Deploy to dev environment' },
+            { label: 'Staging', value: 'staging', description: 'Deploy to staging' },
+            { label: 'Production', value: 'prod', description: 'Deploy to production' },
+            { label: 'Canary', value: 'canary', description: '5% traffic canary' },
+          ],
+        }],
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   thread: async (msg) => {
-    // Thread creation still uses Discord API directly (no A2UI equivalent)
     const thread = await (msg.channel as TextChannel).threads.create({
       name: `📋 Task: ${msg.content.slice(8) || 'Deploy v0.2.0'}`,
       autoArchiveDuration: 60,
     });
-
-    const taskComponents: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🎯 Task Created', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'Thread created for task tracking.', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await thread.send(a2ui(taskComponents, { intent: 'INFORM' }));
+    const a2ui = createA2UIMessages('thread-task', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'thread-embed', component: 'DiscordEmbed',
+        title: '🎯 Task Created',
+        description: 'Thread created for task tracking.',
+        color: '#2ecc71',
+      }],
+    });
+    await thread.send(renderMessages(a2ui));
     await msg.reply(`Thread created: ${thread}`);
   },
 
   cards: async (msg) => {
-    const components: A2UIComponent[] = [
-      // Email card
-      { id: 'email-title', component: 'Text', text: '📧 Unread Emails (3)', variant: 'h1' },
-      { id: 'email-body', component: 'Text', text: 'From: team@google.com — ADK v1.2 release planning\nFrom: github@noreply.com — [a2discord] PR #12 ready\nFrom: calendar@google.com — Reminder: 1:1 in 30 min', variant: 'body' },
-      { id: 'email-content', component: 'Column', children: ['email-title', 'email-body'] },
-      { id: 'email-card', component: 'Card', child: 'email-content' },
-      // Calendar card
-      { id: 'cal-title', component: 'Text', text: '📅 Upcoming (next 4h)', variant: 'h1' },
-      { id: 'cal-body', component: 'Text', text: '14:00 — 1:1 with PM\n15:30 — Sprint Review\n17:00 — EOD standup', variant: 'body' },
-      { id: 'cal-content', component: 'Column', children: ['cal-title', 'cal-body'] },
-      { id: 'cal-card', component: 'Card', child: 'cal-content' },
-      // Notifications card
-      { id: 'notif-title', component: 'Text', text: '🔔 Notifications', variant: 'h1' },
-      { id: 'notif-body', component: 'Text', text: '• PR #45 merged to main\n• CI passed on `a2discord@abc1234`\n• 2 new issues assigned', variant: 'body' },
-      { id: 'notif-content', component: 'Column', children: ['notif-title', 'notif-body'] },
-      { id: 'notif-card', component: 'Card', child: 'notif-content' },
-      // Root
-      { id: 'root', component: 'Column', children: ['email-card', 'cal-card', 'notif-card'] },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    const a2ui = createA2UIMessages('cards-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [
+        {
+          id: 'email-embed', component: 'DiscordEmbed',
+          title: '📧 Unread Emails (3)',
+          description: 'From: team@google.com — ADK v1.2 release planning\nFrom: github@noreply.com — [a2discord] PR #12 ready\nFrom: calendar@google.com — Reminder: 1:1 in 30 min',
+          color: '#3498db',
+        },
+        {
+          id: 'cal-embed', component: 'DiscordEmbed',
+          title: '📅 Upcoming (next 4h)',
+          description: '14:00 — 1:1 with PM\n15:30 — Sprint Review\n17:00 — EOD standup',
+          color: '#2ecc71',
+        },
+        {
+          id: 'notif-embed', component: 'DiscordEmbed',
+          title: '🔔 Notifications',
+          description: '• PR #45 merged to main\n• CI passed on `a2discord@abc1234`\n• 2 new issues assigned',
+          color: '#9b59b6',
+        },
+      ],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   status: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 't1', component: 'Text', text: '✅ **a2a-relay-dev** — healthy (2ms)', variant: 'h1' },
-      { id: 'c1', component: 'Column', children: ['t1'] },
-      { id: 'card1', component: 'Card', child: 'c1' },
-      { id: 't2', component: 'Text', text: '✅ **openclaw-live-dev** — healthy (45ms)', variant: 'h1' },
-      { id: 'c2', component: 'Column', children: ['t2'] },
-      { id: 'card2', component: 'Card', child: 'c2' },
-      { id: 't3', component: 'Text', text: '❌ **a2discord-prod** — unreachable', variant: 'h1' },
-      { id: 'c3', component: 'Column', children: ['t3'] },
-      { id: 'card3', component: 'Card', child: 'c3' },
-      { id: 'root', component: 'Column', children: ['card1', 'card2', 'card3'] },
-    ];
-    await msg.reply(a2ui(components));
+    const a2ui = createA2UIMessages('status-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [
+        { id: 's1', component: 'DiscordEmbed', title: '✅ a2a-relay-dev', description: 'healthy (2ms)', color: '#2ecc71' },
+        { id: 's2', component: 'DiscordEmbed', title: '✅ openclaw-live-dev', description: 'healthy (45ms)', color: '#2ecc71' },
+        { id: 's3', component: 'DiscordEmbed', title: '❌ a2discord-prod', description: 'unreachable', color: '#e74c3c' },
+      ],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   error: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '❌ Task Failed', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'The agent encountered an error while processing your request.', variant: 'body' },
-      { id: 'err', component: 'Text', text: '`ConnectionRefusedError: Agent at http://localhost:8080 is not reachable`', variant: 'body' },
-      { id: 'footer', component: 'Text', text: 'A2H Intent: RESULT (failure)', variant: 'caption' },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'err', 'footer'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'RESULT', success: false }));
+    const a2ui = createA2UIMessages('error-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'error-embed', component: 'DiscordEmbed',
+        title: '❌ Task Failed',
+        description: 'The agent encountered an error while processing your request.\n\n`ConnectionRefusedError: Agent at http://localhost:8080 is not reachable`',
+        color: '#e74c3c',
+        footer: 'Discord Catalog • RESULT (failure)',
+        timestamp: true,
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   code: async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '📄 Generated Code', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: "Here's the adapter config:\n```yaml\ndiscord:\n  token: ${DISCORD_TOKEN}\n  guild_id: \"1465369831044944118\"\nagents:\n  - name: zaf\n    url: https://a2a-relay-dev.run.app\n```", variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+    const a2ui = createA2UIMessages('code-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'code-embed', component: 'DiscordEmbed',
+        title: '📄 Generated Code',
+        description: "Here's the adapter config:\n```yaml\ndiscord:\n  token: ${DISCORD_TOKEN}\n  guild_id: \"1465369831044944118\"\nagents:\n  - name: zaf\n    url: https://a2a-relay-dev.run.app\n```",
+        color: '#3498db',
+      }],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   progress: async (msg) => {
-    // Progress still uses message edits (inherently imperative, not A2UI)
     const reply = await msg.reply('⏳ Processing...');
     const stages = [
       '⏳ Processing... `[##--------]` 20%',
@@ -272,65 +329,86 @@ const commands: Record<string, (msg: Message) => Promise<void>> = {
       await reply.edit(stage);
     }
     await new Promise(r => setTimeout(r, 500));
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '✅ Task Complete', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'Streaming with message edits, final result via A2UI.', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await reply.edit({ content: '', ...a2ui(components, { intent: 'RESULT', success: true }) });
+    const a2ui = createA2UIMessages('progress-done', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'done-embed', component: 'DiscordEmbed',
+        title: '✅ Task Complete',
+        description: 'Streaming with message edits, final result via A2UI v0.9.',
+        color: '#2ecc71',
+        timestamp: true,
+      }],
+    });
+    await reply.edit({ content: '', ...renderMessages(a2ui) });
   },
 
   'kitchen-sink': async (msg) => {
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🍳 Kitchen Sink Demo', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'Everything a2discord can render in one message.\n\n**Bold**, *italic*, `code`, ~~strikethrough~~, ||spoiler||', variant: 'body' },
-      { id: 'thumb', component: 'Image', url: 'https://github.com/zeroasterisk.png', variant: 'thumbnail' },
-      { id: 'f1', component: 'Text', text: 'Inline 1: Value', variant: 'body' },
-      { id: 'f2', component: 'Text', text: 'Inline 2: Value', variant: 'body' },
-      { id: 'code-block', component: 'Text', text: '```ts\nconst x: string = "hello";\n```', variant: 'body' },
-      { id: 'hero-img', component: 'Image', url: 'https://opengraph.githubassets.com/1/zeroasterisk/a2discord' },
-      { id: 'footer', component: 'Text', text: 'A2H • A2UI • A2A', variant: 'caption' },
-      // Buttons
-      { id: 'approve-label', component: 'Text', text: '✅ Approve' },
-      { id: 'approve-btn', component: 'Button', child: 'approve-label', variant: 'success', action: { event: { name: 'approve' } } },
-      { id: 'deny-label', component: 'Text', text: '❌ Deny' },
-      { id: 'deny-btn', component: 'Button', child: 'deny-label', variant: 'danger', action: { event: { name: 'deny' } } },
-      { id: 'info-label', component: 'Text', text: 'ℹ️ Details' },
-      { id: 'info-btn', component: 'Button', child: 'info-label', variant: 'primary', action: { event: { name: 'info' } } },
-      { id: 'btn-row', component: 'Row', children: ['approve-btn', 'deny-btn', 'info-btn'] },
-      // Select
-      {
-        id: 'ks-select', component: 'ChoicePicker',
-        options: [
-          { label: 'Option A', value: 'a' },
-          { label: 'Option B', value: 'b' },
-          { label: 'Option C', value: 'c' },
+    const a2ui = createA2UIMessages('kitchen-sink', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'ks-embed', component: 'DiscordEmbed',
+        title: '🍳 Kitchen Sink Demo',
+        description: 'Everything a2discord can render in one message.\n\n**Bold**, *italic*, `code`, ~~strikethrough~~, ||spoiler||',
+        color: '#3498db',
+        fields: [
+          { name: 'Inline 1', value: 'Value A', inline: true },
+          { name: 'Inline 2', value: 'Value B', inline: true },
+          { name: 'Code Block', value: '```ts\nconst x: string = "hello";\n```', inline: false },
         ],
-        maxAllowedSelections: 1,
-      },
-      { id: 'content', component: 'Column', children: ['title', 'desc', 'thumb', 'f1', 'f2', 'code-block', 'hero-img', 'footer', 'btn-row', 'ks-select'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await msg.reply(a2ui(components, { intent: 'INFORM' }));
+        thumbnail: 'https://github.com/zeroasterisk.png',
+        image: 'https://opengraph.githubassets.com/1/zeroasterisk/a2discord',
+        footer: 'A2UI v0.9 • Discord Catalog',
+      }],
+      components: [
+        {
+          id: 'ks-btn-row', component: 'DiscordActionRow',
+          children: [
+            { id: 'ks-approve', component: 'DiscordButton', label: '✅ Approve', style: 'success', customId: 'a2ui-approve' },
+            { id: 'ks-deny', component: 'DiscordButton', label: '❌ Deny', style: 'danger', customId: 'a2ui-deny' },
+            { id: 'ks-info', component: 'DiscordButton', label: 'ℹ️ Details', style: 'primary', customId: 'demo-info' },
+          ],
+        },
+        {
+          id: 'ks-select-row', component: 'DiscordActionRow',
+          children: [{
+            id: 'ks-select', component: 'DiscordSelectMenu',
+            customId: 'ks-select-menu',
+            placeholder: 'Select an option...',
+            options: [
+              { label: 'Option A', value: 'a' },
+              { label: 'Option B', value: 'b' },
+              { label: 'Option C', value: 'c' },
+            ],
+          }],
+        },
+      ],
+    });
+    await msg.reply(renderMessages(a2ui));
   },
 
   'a2ui-raw': async (msg) => {
-    // Show raw A2UI JSON alongside rendered output
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: '🔍 A2UI Raw Debug', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: 'This shows the A2UI JSON and its Discord rendering side by side.', variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    const rendered = a2ui(components, { intent: 'INFORM' });
+    const a2ui = createA2UIMessages('raw-demo', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'raw-embed', component: 'DiscordEmbed',
+        title: '🔍 A2UI Raw Debug',
+        description: 'This shows the A2UI v0.9 wire format and its Discord rendering.',
+        color: '#3498db',
+      }],
+      components: [{
+        id: 'raw-row', component: 'DiscordActionRow',
+        children: [
+          { id: 'raw-btn', component: 'DiscordButton', label: '🔘 Example Button', style: 'primary', customId: 'raw-example' },
+        ],
+      }],
+    });
 
     // Send raw JSON first
-    const json = JSON.stringify({ components, metadata: { intent: 'INFORM' } }, null, 2);
-    await msg.reply(`**Raw A2UI JSON:**\n\`\`\`json\n${json.slice(0, 1800)}\n\`\`\``);
+    const json = JSON.stringify(a2ui, null, 2);
+    await msg.reply(`**Raw A2UI v0.9 Wire Format:**\n\`\`\`json\n${json.slice(0, 1800)}\n\`\`\``);
 
     // Then send rendered version
-    await (msg.channel as TextChannel).send({ content: '**Rendered Discord output:**', ...rendered });
+    await (msg.channel as TextChannel).send({ content: '**Rendered Discord output:**', ...renderMessages(a2ui) });
   },
 };
 
@@ -342,34 +420,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const id = btn.customId;
 
     if (id.includes('approve')) {
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '✅ Approved', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `Approved by <@${btn.user.id}>`, variant: 'body' },
-        { id: 'content', component: 'Column', children: ['title', 'desc'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await btn.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
+      const a2ui = createA2UIMessages('approved', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{
+          id: 'result', component: 'DiscordEmbed',
+          title: '✅ Approved',
+          description: `Approved by <@${btn.user.id}>`,
+          color: '#2ecc71',
+          timestamp: true,
+        }],
+      });
+      await btn.update({ ...renderMessages(a2ui), components: [] });
     } else if (id.includes('deny')) {
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '❌ Denied', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `Denied by <@${btn.user.id}>`, variant: 'body' },
-        { id: 'content', component: 'Column', children: ['title', 'desc'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await btn.update({ ...a2ui(components, { intent: 'RESULT', success: false }), components: [] });
+      const a2ui = createA2UIMessages('denied', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{
+          id: 'result', component: 'DiscordEmbed',
+          title: '❌ Denied',
+          description: `Denied by <@${btn.user.id}>`,
+          color: '#e74c3c',
+          timestamp: true,
+        }],
+      });
+      await btn.update({ ...renderMessages(a2ui), components: [] });
     } else if (id === 'a2ui-collect-respond') {
-      const modal = new ModalBuilder()
-        .setCustomId('demo-modal-submit')
-        .setTitle('📝 Project Details');
-      modal.addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder().setCustomId('project-name').setLabel('Project Name').setStyle(TextInputStyle.Short).setRequired(true),
-        ),
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder().setCustomId('project-desc').setLabel('Description').setStyle(TextInputStyle.Paragraph).setRequired(true),
-        ),
-      );
-      await btn.showModal(modal);
+      // Build modal from A2UI v0.9 DiscordModal component
+      const modalMessages: A2UIMessage[] = [
+        { version: 'v0.9', createSurface: { surfaceId: 'collect-modal', catalogId: DISCORD_CATALOG_ID } },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'collect-modal',
+            components: [{
+              id: 'modal-root', component: 'DiscordModal',
+              title: '📝 Project Details',
+              customId: 'demo-modal-submit',
+              fields: [
+                { id: 'field-name', component: 'DiscordTextInput', customId: 'project-name', label: 'Project Name', style: 'short', required: true },
+                { id: 'field-desc', component: 'DiscordTextInput', customId: 'project-desc', label: 'Description', style: 'paragraph', required: true },
+                { id: 'field-priority', component: 'DiscordTextInput', customId: 'project-priority', label: 'Priority (low/medium/high)', style: 'short' },
+              ],
+            }],
+          },
+        },
+      ];
+      const result = renderer.render(modalMessages);
+      if (result.modals.length > 0) {
+        await btn.showModal(result.modals[0] as any);
+      }
     } else {
       await btn.reply({ content: `You clicked: **${id}**`, flags: ['Ephemeral'] as any });
     }
@@ -377,13 +475,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (interaction.isStringSelectMenu()) {
     const select = interaction as StringSelectMenuInteraction;
-    const components: A2UIComponent[] = [
-      { id: 'title', component: 'Text', text: 'Selection Made', variant: 'h1' },
-      { id: 'desc', component: 'Text', text: `You selected: **${select.values.join(', ')}**`, variant: 'body' },
-      { id: 'content', component: 'Column', children: ['title', 'desc'] },
-      { id: 'root', component: 'Card', child: 'content' },
-    ];
-    await select.update({ ...a2ui(components, { intent: 'RESULT', success: true }), components: [] });
+    const a2ui = createA2UIMessages('selected', {
+      id: 'root', component: 'DiscordMessage',
+      embeds: [{
+        id: 'result', component: 'DiscordEmbed',
+        title: 'Selection Made',
+        description: `You selected: **${select.values.join(', ')}**`,
+        color: '#2ecc71',
+      }],
+    });
+    await select.update({ ...renderMessages(a2ui), components: [] });
   }
 
   if (interaction.isModalSubmit()) {
@@ -391,14 +492,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (modal.customId === 'demo-modal-submit') {
       const name = modal.fields.getTextInputValue('project-name');
       const desc = modal.fields.getTextInputValue('project-desc');
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '✅ Input Received', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `Project: ${name}\nDescription: ${desc}`, variant: 'body' },
-        { id: 'footer', component: 'Text', text: 'A2H Intent: COLLECT → response', variant: 'caption' },
-        { id: 'content', component: 'Column', children: ['title', 'desc', 'footer'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await modal.reply(a2ui(components, { intent: 'RESULT', success: true }));
+      const a2ui = createA2UIMessages('modal-result', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{
+          id: 'result', component: 'DiscordEmbed',
+          title: '✅ Input Received',
+          description: `**Project:** ${name}\n**Description:** ${desc}`,
+          color: '#2ecc71',
+          footer: 'Discord Catalog • COLLECT → response',
+        }],
+      });
+      await modal.reply(renderMessages(a2ui));
     }
   }
 });
@@ -425,13 +529,16 @@ client.on(Events.MessageCreate, async (msg) => {
       await commands[cmd](msg);
     } catch (err) {
       console.error(`[demo-bot] Error in !${cmd}:`, err);
-      const components: A2UIComponent[] = [
-        { id: 'title', component: 'Text', text: '❌ Command Error', variant: 'h1' },
-        { id: 'desc', component: 'Text', text: `\`\`\`\n${(err as Error).message}\n\`\`\``, variant: 'body' },
-        { id: 'content', component: 'Column', children: ['title', 'desc'] },
-        { id: 'root', component: 'Card', child: 'content' },
-      ];
-      await msg.reply(a2ui(components, { intent: 'RESULT', success: false }));
+      const a2ui = createA2UIMessages('error', {
+        id: 'root', component: 'DiscordMessage',
+        embeds: [{
+          id: 'err', component: 'DiscordEmbed',
+          title: '❌ Command Error',
+          description: `\`\`\`\n${(err as Error).message}\n\`\`\``,
+          color: '#e74c3c',
+        }],
+      });
+      await msg.reply(renderMessages(a2ui));
     }
   }
 });
@@ -439,7 +546,7 @@ client.on(Events.MessageCreate, async (msg) => {
 // ─── Startup ───
 
 client.once(Events.ClientReady, (c) => {
-  console.log(`[demo-bot] Online as ${c.user.tag} (A2UI-driven)`);
+  console.log(`[demo-bot] Online as ${c.user.tag} (A2UI v0.9 Discord Catalog)`);
   console.log(`[demo-bot] Guilds: ${c.guilds.cache.map(g => g.name).join(', ')}`);
   console.log(`[demo-bot] Channel filter: ${CHANNEL_FILTER.length ? CHANNEL_FILTER.join(', ') : 'all'}`);
   console.log('[demo-bot] Commands: ' + Object.keys(commands).map(c => `!${c}`).join(', '));

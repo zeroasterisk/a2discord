@@ -1,9 +1,21 @@
 /**
- * A2A protocol fixtures — JSON-RPC 2.0 envelopes, tasks, messages, parts.
- * Matches the A2A spec for proper task lifecycle testing.
+ * A2A protocol fixtures + Discord catalog A2UI v0.9 factories.
  */
 
-// ─── Types ───
+import type {
+  A2UIMessage,
+  DiscordMessageComponent,
+  DiscordEmbedComponent,
+  DiscordActionRowComponent,
+  DiscordButtonComponent,
+  DiscordSelectMenuComponent,
+  DiscordModalComponent,
+  DiscordTextInputComponent,
+  DiscordComponent,
+} from '../../src/types';
+import { DISCORD_CATALOG_ID } from '../../src/types';
+
+// ─── A2A Types ───
 
 export interface A2APart {
   type: 'text' | 'data' | 'file';
@@ -44,20 +56,15 @@ export interface A2AAgentCard {
   description: string;
   url: string;
   version: string;
-  capabilities: {
-    streaming?: boolean;
-    pushNotifications?: boolean;
-  };
+  capabilities: { streaming?: boolean; pushNotifications?: boolean };
   skills: { id: string; name: string; description: string }[];
   defaultInputModes?: string[];
   defaultOutputModes?: string[];
 }
 
-// ─── A2H Intent metadata keys ───
-
 export type A2HIntent = 'INFORM' | 'COLLECT' | 'AUTHORIZE' | 'ESCALATE' | 'RESULT';
 
-// ─── Factories ───
+// ─── A2A Factories ───
 
 let taskCounter = 0;
 
@@ -65,9 +72,7 @@ export function createTaskId(): string {
   return `task-${++taskCounter}-${Date.now()}`;
 }
 
-export function resetTaskCounter() {
-  taskCounter = 0;
-}
+export function resetTaskCounter() { taskCounter = 0; }
 
 export function createTextPart(text: string): A2APart {
   return { type: 'text', text };
@@ -104,284 +109,178 @@ export function createTask(overrides: Partial<A2ATask> = {}): A2ATask {
   };
 }
 
-// ─── JSON-RPC Envelopes ───
+// ─── JSON-RPC ───
 
 export function createJsonRpcRequest(method: string, params: Record<string, unknown>, id?: string | number) {
-  return {
-    jsonrpc: '2.0' as const,
-    id: id ?? 1,
-    method,
-    params,
-  };
+  return { jsonrpc: '2.0' as const, id: id ?? 1, method, params };
 }
 
 export function createJsonRpcResponse(result: unknown, id?: string | number) {
-  return {
-    jsonrpc: '2.0' as const,
-    id: id ?? 1,
-    result,
-  };
+  return { jsonrpc: '2.0' as const, id: id ?? 1, result };
 }
 
 export function createJsonRpcError(code: number, message: string, id?: string | number, data?: unknown) {
-  return {
-    jsonrpc: '2.0' as const,
-    id: id ?? 1,
-    error: { code, message, data },
-  };
+  return { jsonrpc: '2.0' as const, id: id ?? 1, error: { code, message, data } };
 }
 
-// ─── Canned Scenarios ───
+// ─── Canned A2A Scenarios ───
 
-/** Simple text echo response */
 export function echoTaskResponse(userText: string, taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
   return createTask({
-    id,
-    status: { state: 'completed', message: createAgentMessage(`Echo: ${userText}`) },
+    id, status: { state: 'completed', message: createAgentMessage(`Echo: ${userText}`) },
     history: [createUserMessage(userText), createAgentMessage(`Echo: ${userText}`)],
   });
 }
 
-/** AUTHORIZE intent — agent asks for approval */
 export function authorizeTaskResponse(action: string, taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
   return createTask({
-    id,
-    status: {
+    id, status: {
       state: 'input-required',
-      message: createAgentMessage(`Requesting approval to: ${action}`, 'AUTHORIZE', {
-        action,
-        buttons: ['approve', 'deny'],
-      }),
+      message: createAgentMessage(`Requesting approval to: ${action}`, 'AUTHORIZE', { action, buttons: ['approve', 'deny'] }),
     },
   });
 }
 
-/** COLLECT intent — agent asks for structured input */
 export function collectTaskResponse(fields: { name: string; label: string; required?: boolean }[], taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
   return createTask({
-    id,
-    status: {
+    id, status: {
       state: 'input-required',
-      message: createAgentMessage('Please provide the following information:', 'COLLECT', {
-        schema: { fields },
-      }),
+      message: createAgentMessage('Please provide the following information:', 'COLLECT', { schema: { fields } }),
     },
   });
 }
 
-/** INFORM intent — agent shares info */
 export function informTaskResponse(info: string, taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
-  return createTask({
-    id,
-    status: {
-      state: 'completed',
-      message: createAgentMessage(info, 'INFORM'),
-    },
-  });
+  return createTask({ id, status: { state: 'completed', message: createAgentMessage(info, 'INFORM') } });
 }
 
-/** RESULT intent — final outcome */
 export function resultTaskResponse(outcome: string, taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
-  return createTask({
-    id,
-    status: {
-      state: 'completed',
-      message: createAgentMessage(outcome, 'RESULT', { success: true }),
-    },
-  });
+  return createTask({ id, status: { state: 'completed', message: createAgentMessage(outcome, 'RESULT', { success: true }) } });
 }
 
-/** Failed task */
 export function failedTaskResponse(error: string, taskId?: string): A2ATask {
   const id = taskId ?? createTaskId();
-  return createTask({
-    id,
-    status: {
-      state: 'failed',
-      message: createAgentMessage(error),
-    },
-  });
+  return createTask({ id, status: { state: 'failed', message: createAgentMessage(error) } });
 }
 
-/** Streaming SSE events for tasks/sendSubscribe */
 export function createStreamingEvents(taskId: string, chunks: string[]): string[] {
   const events: string[] = [];
-
-  // Working status
-  events.push(
-    `data: ${JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'tasks/status',
-      params: { id: taskId, status: { state: 'working' }, final: false },
-    })}\n\n`
-  );
-
-  // Artifact chunks
+  events.push(`data: ${JSON.stringify({ jsonrpc: '2.0', method: 'tasks/status', params: { id: taskId, status: { state: 'working' }, final: false } })}\n\n`);
   for (let i = 0; i < chunks.length; i++) {
-    events.push(
-      `data: ${JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'tasks/artifact',
-        params: {
-          id: taskId,
-          artifact: { parts: [{ type: 'text', text: chunks[i] }], append: i > 0 },
-        },
-      })}\n\n`
-    );
+    events.push(`data: ${JSON.stringify({ jsonrpc: '2.0', method: 'tasks/artifact', params: { id: taskId, artifact: { parts: [{ type: 'text', text: chunks[i] }], append: i > 0 } } })}\n\n`);
   }
-
-  // Completed status
-  events.push(
-    `data: ${JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'tasks/status',
-      params: {
-        id: taskId,
-        status: { state: 'completed', message: createAgentMessage(chunks.join('')) },
-        final: true,
-      },
-    })}\n\n`
-  );
-
+  events.push(`data: ${JSON.stringify({ jsonrpc: '2.0', method: 'tasks/status', params: { id: taskId, status: { state: 'completed', message: createAgentMessage(chunks.join('')) }, final: true } })}\n\n`);
   return events;
 }
 
-// ─── A2UI Component Factories ───
-
-export interface A2UIComponent {
-  id: string;
-  component: string;
-  [key: string]: unknown;
-}
+// ─── Discord Catalog A2UI v0.9 Factories ───
 
 let a2uiCounter = 0;
+
+export function resetA2UICounter() { a2uiCounter = 0; }
 
 function a2uiId(prefix: string): string {
   return `${prefix}-${++a2uiCounter}`;
 }
 
-export function resetA2UICounter() {
-  a2uiCounter = 0;
-}
-
-export function createA2UIText(text: string, variant?: string, id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('text'), component: 'Text', text, ...(variant ? { variant } : {}) };
-}
-
-export function createA2UIButton(label: string, actionName: string, variant?: string, id?: string): A2UIComponent {
-  const textId = a2uiId('btn-label');
-  const btnId = id ?? a2uiId('btn');
+/** Create a pair of A2UI v0.9 messages (createSurface + updateComponents) */
+export function createA2UIMessages(surfaceId: string, root: DiscordMessageComponent): A2UIMessage[] {
   return [
-    { id: textId, component: 'Text', text: label },
-    { id: btnId, component: 'Button', child: textId, variant: variant ?? 'primary', action: { event: { name: actionName } } },
-  ] as any; // Returns array — caller must spread into components
-}
-
-export function createA2UIButtonPair(label: string, actionName: string, variant?: string): A2UIComponent[] {
-  const textId = a2uiId('btn-label');
-  const btnId = a2uiId('btn');
-  return [
-    { id: textId, component: 'Text', text: label },
-    { id: btnId, component: 'Button', child: textId, variant: variant ?? 'primary', action: { event: { name: actionName } } },
+    { version: 'v0.9', createSurface: { surfaceId, catalogId: DISCORD_CATALOG_ID } },
+    { version: 'v0.9', updateComponents: { surfaceId, components: [root] } },
   ];
 }
 
-export function createA2UIContainer(title: string, description: string, extraChildren?: A2UIComponent[]): { components: A2UIComponent[]; rootId: string } {
-  const titleId = a2uiId('title');
-  const bodyId = a2uiId('body');
-  const contentId = a2uiId('content');
-  const cardId = a2uiId('card');
-
-  const childIds = [titleId, bodyId, ...(extraChildren?.map(c => c.id) ?? [])];
-  const components: A2UIComponent[] = [
-    { id: titleId, component: 'Text', text: title, variant: 'h1' },
-    { id: bodyId, component: 'Text', text: description, variant: 'body' },
-    ...(extraChildren ?? []),
-    { id: contentId, component: 'Column', children: childIds },
-    { id: cardId, component: 'Card', child: contentId },
-  ];
-
-  return { components, rootId: cardId };
+/** Create a simple DiscordMessage with one embed */
+export function createDiscordMessageWithEmbed(
+  title: string,
+  description: string,
+  opts?: { color?: string; fields?: { name: string; value: string; inline?: boolean }[]; footer?: string },
+): DiscordMessageComponent {
+  const embed: DiscordEmbedComponent = {
+    id: a2uiId('embed'),
+    component: 'DiscordEmbed',
+    title,
+    description,
+    ...(opts?.color ? { color: opts.color } : {}),
+    ...(opts?.fields ? { fields: opts.fields } : {}),
+    ...(opts?.footer ? { footer: opts.footer } : {}),
+  };
+  return { id: 'root', component: 'DiscordMessage', embeds: [embed] };
 }
 
-export function createA2UISection(title: string, content: string, id?: string): A2UIComponent[] {
-  const titleId = a2uiId('section-title');
-  const bodyId = a2uiId('section-body');
-  const colId = id ?? a2uiId('section');
-  return [
-    { id: titleId, component: 'Text', text: title, variant: 'h3' },
-    { id: bodyId, component: 'Text', text: content, variant: 'body' },
-    { id: colId, component: 'Column', children: [titleId, bodyId] },
-  ];
-}
-
-export function createA2UISelectMenu(
-  options: { label: string; value: string; description?: string }[],
-  id?: string,
-): A2UIComponent {
+/** Create a DiscordMessage with buttons */
+export function createDiscordMessageWithButtons(
+  embedTitle: string,
+  buttons: { label: string; style?: string; customId: string }[],
+): DiscordMessageComponent {
   return {
-    id: id ?? a2uiId('select'),
-    component: 'ChoicePicker',
-    options,
-    maxAllowedSelections: 1,
+    id: 'root', component: 'DiscordMessage',
+    embeds: [{ id: a2uiId('embed'), component: 'DiscordEmbed', title: embedTitle, color: '#3498db' }],
+    components: [{
+      id: a2uiId('row'), component: 'DiscordActionRow',
+      children: buttons.map(b => ({
+        id: a2uiId('btn'),
+        component: 'DiscordButton' as const,
+        label: b.label,
+        style: (b.style ?? 'secondary') as any,
+        customId: b.customId,
+      })),
+    }],
   };
 }
 
-export function createA2UIImage(url: string, variant?: string, id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('img'), component: 'Image', url, ...(variant ? { variant } : {}) };
+/** Create a DiscordMessage with a select menu */
+export function createDiscordMessageWithSelect(
+  embedTitle: string,
+  options: { label: string; value: string; description?: string }[],
+  customId?: string,
+): DiscordMessageComponent {
+  return {
+    id: 'root', component: 'DiscordMessage',
+    embeds: [{ id: a2uiId('embed'), component: 'DiscordEmbed', title: embedTitle, color: '#3498db' }],
+    components: [{
+      id: a2uiId('row'), component: 'DiscordActionRow',
+      children: [{
+        id: a2uiId('select'), component: 'DiscordSelectMenu',
+        customId: customId ?? 'test-select',
+        placeholder: 'Choose...',
+        options,
+      }],
+    }],
+  };
 }
 
-export function createA2UIDivider(id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('divider'), component: 'Divider', axis: 'horizontal' };
+/** Create a DiscordModal with text inputs */
+export function createDiscordModal(
+  title: string,
+  customId: string,
+  fields: { label: string; customId: string; style?: 'short' | 'paragraph' }[],
+): DiscordModalComponent {
+  return {
+    id: a2uiId('modal'), component: 'DiscordModal',
+    title, customId,
+    fields: fields.map(f => ({
+      id: a2uiId('input'), component: 'DiscordTextInput' as const,
+      customId: f.customId, label: f.label, style: f.style ?? 'short',
+    })),
+  };
 }
 
-export function createA2UIIcon(name: string, id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('icon'), component: 'Icon', name };
-}
-
-export function createA2UITextField(label: string, textFieldType?: string, id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('input'), component: 'TextField', label, textFieldType: textFieldType ?? 'shortText' };
-}
-
-export function createA2UICheckBox(label: string, id?: string): A2UIComponent {
-  return { id: id ?? a2uiId('checkbox'), component: 'CheckBox', label };
-}
-
-/**
- * Build a full A2UI payload with root component wrapping the given card IDs.
- */
-export function buildA2UIPayload(cards: { components: A2UIComponent[]; rootId: string }[]): { version: string; components: A2UIComponent[] } {
-  const allComponents: A2UIComponent[] = [];
-  const rootChildren: string[] = [];
-
-  for (const card of cards) {
-    allComponents.push(...card.components);
-    rootChildren.push(card.rootId);
-  }
-
-  allComponents.push({ id: 'root', component: 'Column', children: rootChildren });
-
-  return { version: '0.9', components: allComponents };
-}
-
-/**
- * Wrap an A2UI payload into an A2A message data part.
- */
-export function createA2UIMessage(
-  payload: { version: string; components: A2UIComponent[] },
+/** Wrap A2UI messages into an A2A message data part */
+export function createA2UIDataMessage(
+  a2uiMessages: A2UIMessage[],
   intent?: A2HIntent,
-  extra?: Record<string, unknown>,
 ): A2AMessage {
-  const metadata = intent ? { intent, ...extra } : extra;
   return {
     role: 'agent',
-    parts: [{ type: 'data', data: { a2ui: payload } }],
-    metadata,
+    parts: [{ type: 'data', data: { a2ui: a2uiMessages } }],
+    metadata: intent ? { intent } : undefined,
   };
 }
 
@@ -393,10 +292,68 @@ export function createAgentCard(overrides: Partial<A2AAgentCard> = {}): A2AAgent
     url: overrides.url ?? 'http://localhost:9999',
     version: overrides.version ?? '1.0.0',
     capabilities: overrides.capabilities ?? { streaming: true },
-    skills: overrides.skills ?? [
-      { id: 'echo', name: 'Echo', description: 'Echoes back your message' },
-    ],
+    skills: overrides.skills ?? [{ id: 'echo', name: 'Echo', description: 'Echoes back your message' }],
     defaultInputModes: overrides.defaultInputModes ?? ['text'],
     defaultOutputModes: overrides.defaultOutputModes ?? ['text'],
   };
+}
+
+// ─── Legacy compat exports (used by old tests that may still exist) ───
+
+/** @deprecated Use createDiscordMessageWithEmbed */
+export function createA2UIContainer(title: string, description: string, _extra?: any[]): { components: any[]; rootId: string } {
+  const msg = createDiscordMessageWithEmbed(title, description);
+  return { components: [msg], rootId: msg.id };
+}
+
+/** @deprecated */
+export function createA2UIButtonPair(label: string, actionName: string, variant?: string): any[] {
+  return [{ id: a2uiId('btn'), component: 'DiscordButton', label, style: variant ?? 'primary', customId: actionName }];
+}
+
+/** @deprecated */
+export function createA2UISelectMenu(options: { label: string; value: string; description?: string }[], id?: string): any {
+  return { id: id ?? a2uiId('select'), component: 'DiscordSelectMenu', customId: 'test-select', options };
+}
+
+/** @deprecated */
+export function createA2UIText(text: string, variant?: string, id?: string): any {
+  return { id: id ?? a2uiId('text'), component: 'Text', text, variant };
+}
+
+/** @deprecated */
+export function createA2UIImage(url: string, variant?: string, id?: string): any {
+  return { id: id ?? a2uiId('img'), component: 'Image', url, variant };
+}
+
+/** @deprecated */
+export function createA2UIDivider(id?: string): any {
+  return { id: id ?? a2uiId('divider'), component: 'Divider' };
+}
+
+/** @deprecated */
+export function createA2UIIcon(name: string, id?: string): any {
+  return { id: id ?? a2uiId('icon'), component: 'Icon', name };
+}
+
+/** @deprecated */
+export function createA2UITextField(label: string, textFieldType?: string, id?: string): any {
+  return { id: id ?? a2uiId('input'), component: 'TextField', label, textFieldType };
+}
+
+/** @deprecated */
+export function createA2UICheckBox(label: string, id?: string): any {
+  return { id: id ?? a2uiId('checkbox'), component: 'CheckBox', label };
+}
+
+/** @deprecated */
+export function buildA2UIPayload(cards: { components: any[]; rootId: string }[]): { version: string; components: any[] } {
+  const allComponents: any[] = [];
+  for (const card of cards) allComponents.push(...card.components);
+  return { version: '0.9', components: allComponents };
+}
+
+/** @deprecated */
+export function createA2UIMessage(payload: any, intent?: A2HIntent, extra?: Record<string, unknown>): A2AMessage {
+  return { role: 'agent', parts: [{ type: 'data', data: { a2ui: payload } }], metadata: intent ? { intent, ...extra } : extra };
 }
