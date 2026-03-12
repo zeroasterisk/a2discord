@@ -531,6 +531,7 @@ Before connecting to a2discord, validate that your agent's output matches the ca
 
 ## Further Reading
 
+- [Developer Loop Example](DEVELOPER_LOOP_EXAMPLE.md) — **HITL patterns in a real loop**: COLLECT design decisions, AUTHORIZE before publishing
 - [End-to-End Walkthrough](END_TO_END_WALKTHROUGH.md) — full traced interaction with wire format
 - [A2UI Mapping](A2UI-MAPPING.md) — complete component mapping reference
 - [Design](DESIGN.md) — architecture, layer model, state ownership
