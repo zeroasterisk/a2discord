@@ -1,89 +1,107 @@
 # a2discord
 
-**Discord adapter for A2A agents** — map any agent to a Discord bot using [A2A](https://github.com/google/A2A), [A2UI](https://a2ui.org), and A2H conventions.
+**Discord transport adapter for A2UI agents** — any agent that speaks [A2UI](https://a2ui.org) gets native Discord rendering via a component catalog.
 
-## What This Is
+## How It Works
 
-**Not a bridge bot.** An adapter layer that any A2A-compliant agent plugs into.
-
-```mermaid
-graph LR
-    Agent["Any A2A Agent<br/>(ADK, LangGraph,<br/>CrewAI, etc.)"]
-    Adapter["a2discord<br/>Adapter"]
-    Discord["Discord API"]
-
-    Agent <-->|"A2A<br/>JSON-RPC"| Adapter
-    Adapter <-->|"Discord<br/>Events/REST"| Discord
+```
+Agent → A2UI v0.9 JSON → a2discord renderer → Discord embeds, buttons, modals
+User clicks button     → a2discord adapter  → A2UI clientEvent → Agent receives
 ```
 
-**Agent developers speak A2A.** The adapter handles Discord translation.
+The agent doesn't import `discord.js`. It composes UI using the **Discord component catalog** — a set of 7 Discord-native components defined as A2UI v0.9 JSON Schema. The adapter renders them as native Discord primitives.
 
-## A2A on Discord
+<!-- TODO: Add screenshot showing the quiz question with True/False buttons -->
+![A2UI quiz rendered in Discord](docs/images/quiz-question.png)
 
-[A2A](https://github.com/google/A2A) (Agent-to-Agent) protocol primitives map directly to Discord:
+**→ [Full end-to-end walkthrough](docs/END_TO_END_WALKTHROUGH.md)** — traces a single interaction through every layer.
 
-| A2A Concept | Discord Primitive |
-|-------------|-------------------|
-| Agent Card | Bot profile + slash commands |
-| Task | Thread (lifecycle isolation) |
-| Message | Discord message |
-| Streaming | Message edits |
-| Task states | Thread metadata / status embeds |
+## Discord Component Catalog
 
-Each A2A task gets its own Discord thread — conversations stay isolated, context stays scoped.
+a2discord defines a Discord-specific [A2UI component catalog](catalog/discord_catalog.json):
 
-## A2UI on Discord
+| Catalog Component | Discord Primitive | Example Use |
+|---|---|---|
+| `DiscordMessage` | Message | Top-level container |
+| `DiscordEmbed` | Embed | Structured info cards |
+| `DiscordButton` | Button | Actions, confirmations |
+| `DiscordActionRow` | Action Row | Button/select container |
+| `DiscordSelectMenu` | Select Menu | Dropdowns, choices |
+| `DiscordModal` | Modal | Forms, data collection |
+| `DiscordTextInput` | Text Input | Modal form fields |
 
-[A2UI](https://a2ui.org) structured UI components render as native Discord components:
+Agents receive this catalog via [A2UI catalog negotiation](https://a2ui.org/catalogs/). The same agent given a Slack catalog would render native Slack UI. **The agent is surface-agnostic.**
 
-| A2UI Component | Discord Component |
-|----------------|-------------------|
-| Container, Section | Embed |
-| Button (up to 5/row) | Action Row → Buttons |
-| Select Menu | Dropdown (string, user, role, channel) |
-| Text Display | Embed field or message content |
-| Modal/Form | Discord Modal (up to 5 text inputs) |
-| Media Gallery | Attachment embeds |
+## A2A Transport (Optional)
 
-Unsupported A2UI components (charts, canvas, custom rendering) gracefully fall back to text descriptions or image snapshots.
+[A2A](https://a2a-protocol.org) is the transport layer, not the UI layer. Use it when the agent is a separate process:
 
-## A2H Conventions on Discord
+```
+Remote agent: Agent ←A2A JSON-RPC→ a2discord ←Discord API→ Discord
+Local agent:  Agent ←A2UI directly→ a2discord ←Discord API→ Discord
+```
 
-A2H (Agent-to-Human) interaction patterns map to Discord's native interaction model:
+A2A wraps A2UI messages in `tasks/send` JSON-RPC calls. a2discord extracts and renders them. If the agent is co-located, skip A2A entirely.
 
-| A2H Intent | Discord Primitive |
-|------------|-------------------|
-| INFORM | Embed or plain message (fire-and-forget) |
-| COLLECT | Modal form or select menus |
-| AUTHORIZE | Button row (✅/❌) + optional thread for context |
-| ESCALATE | Mention/ping a human, open thread |
-| RESULT | Edit original message with outcome |
+## A2H Interaction Patterns
 
-Discord's interaction model (buttons, modals, select menus) is a natural fit for structured human-in-the-loop workflows. Messages are edited with outcomes after interaction — collapse after interaction.
+A2H conventions map to Discord's interaction model:
+
+| Intent | Discord Rendering |
+|--------|-------------------|
+| **INFORM** | Blue embed |
+| **AUTHORIZE** | Orange embed + ✅/❌ buttons |
+| **COLLECT** | Embed + modal form |
+| **RESULT** | Green/red embed (success/failure) |
+| **ESCALATE** | @mention + thread |
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install
 bun install
 
 # Configure
 cp .env.example .env
-# Edit .env with your Discord bot token and A2A agent URL
+# Set DISCORD_TOKEN and optionally A2A_AGENT_URL
 
-# Run
+# Run demo bot (deterministic, no agent needed)
+bun run demo
+
+# Run adapter (connects to A2A agent)
 bun run dev
 ```
 
-See the [User Guide](docs/USER_GUIDE.md) for full setup instructions including Discord bot creation.
+See the [User Guide](docs/USER_GUIDE.md) for Discord bot setup.
 
 ## Architecture
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture and mapping specification.
+```mermaid
+graph LR
+    Agent["Any A2UI Agent"]
+    A2A["A2A Transport<br/>(optional)"]
+    Adapter["a2discord<br/>Renderer"]
+    Discord["Discord API"]
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the development plan.
+    Agent -->|"A2UI v0.9"| A2A
+    A2A -->|"JSON-RPC"| Adapter
+    Agent -.->|"direct"| Adapter
+    Adapter -->|"discord.js"| Discord
+    Discord -->|"Interactions"| Adapter
+    Adapter -->|"A2UI clientEvent"| Agent
+```
 
-See [docs/DECISIONS.md](docs/DECISIONS.md) for architecture decision records.
+## Docs
+
+- **[End-to-End Walkthrough](docs/END_TO_END_WALKTHROUGH.md)** — full step-by-step with wire format examples
+- **[Design](docs/DESIGN.md)** — architecture, layer model, mapping spec
+- **[A2UI Mapping](docs/A2UI-MAPPING.md)** — component mapping reference
+- **[Roadmap](docs/ROADMAP.md)** — development phases
+- **[Decisions](docs/DECISIONS.md)** — ADRs
+
+## Status
+
+Phase 1 MVP complete — Discord catalog, renderer, demo bot, test suite (134 tests), live E2E verified.
 
 ## License
 
