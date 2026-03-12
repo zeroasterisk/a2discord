@@ -2,14 +2,17 @@
 
 ## Overview
 
-a2discord is a **transport adapter** — the same architectural pattern as [a2a-relay](https://github.com/zeroasterisk/a2a-relay). Where the relay translates WebSocket↔A2A, a2discord translates Discord↔A2A. The agent stays pure A2A and never knows what surface it's talking to.
+a2discord is an **A2UI catalog-first Discord adapter**. It defines a Discord-native [component catalog](../catalog/discord_catalog.json) — 7 components that map 1:1 to Discord primitives — and renders any agent's A2UI v0.9 output as native Discord UI.
+
+The architecture follows the same standalone transport pattern as [a2a-relay](https://github.com/zeroasterisk/a2a-relay), but the key insight is: **A2UI is the UI protocol, A2A is an optional transport.** An agent that composes UI using the Discord catalog gets native Discord rendering regardless of how it connects — via A2A JSON-RPC, direct integration, or any other transport.
 
 This is **not** an agent framework plugin or an A2A protocol extension. It's infrastructure. See [DECISIONS.md](DECISIONS.md#adr-001-standalone-transport-adapter-not-framework-integration) for the full rationale.
 
 **State ownership:**
 - **a2discord** owns Discord state (threads, messages, button interactions, component lifecycle)
 - **The agent** owns task state (A2A task lifecycle, business logic)
-- **A2H/A2UI** bridge the gap: agents emit interaction intents and UI components, the adapter renders them as Discord primitives
+- **A2UI catalog** is the contract: agents compose with catalog components, the renderer translates to Discord primitives
+- **A2H conventions** bridge the gap: agents emit interaction intents, the adapter renders them with appropriate Discord affordances
 
 ## Architecture
 
@@ -31,22 +34,22 @@ graph LR
 │  AUTHORIZE, COLLECT, ESCALATE, INFORM       │
 ├─────────────────────────────────────────────┤
 │  Layer 3: Rendering (A2UI → Discord)        │
-│  Components, embeds, buttons, modals        │
+│  Discord catalog components → primitives    │
 ├─────────────────────────────────────────────┤
 │  Layer 2: Protocol (A2A ↔ Discord)          │
 │  JSON-RPC tasks ↔ Discord events            │
 ├─────────────────────────────────────────────┤
 │  Layer 1: Transport                         │
-│  discord.py gateway + REST                  │
+│  discord.js gateway + REST                  │
 └─────────────────────────────────────────────┘
 ```
 
 ### Layer 1: Transport
 
-- **Library:** discord.py (Python, for ADK compatibility)
+- **Library:** discord.js (TypeScript)
 - **Gateway:** WebSocket connection for real-time events
 - **REST:** For sending messages, creating threads, managing components
-- **Events handled:** `on_message`, `on_interaction` (buttons, modals, selects), `on_thread_create`
+- **Events handled:** `messageCreate`, `interactionCreate` (buttons, modals, selects)
 
 ### Layer 2: Protocol — A2A ↔ Discord
 
@@ -156,6 +159,30 @@ a2discord → Agent: Message with human response
 Agent → a2discord: Message with RESULT intent + outcome
 a2discord → Discord: Edit original message → show result, collapse buttons
 ```
+
+## Discord Component Catalog
+
+The core of a2discord is its **A2UI component catalog** — a set of 7 Discord-native components defined as JSON Schema, following the [A2UI v0.9 catalog specification](https://a2ui.org/catalogs/).
+
+| Catalog Component | Discord Primitive | Purpose |
+|---|---|---|
+| `DiscordMessage` | `MessageCreateOptions` | Top-level container (content, embeds, components) |
+| `DiscordEmbed` | `EmbedBuilder` | Rich cards (title, description, color, fields, images) |
+| `DiscordButton` | `ButtonBuilder` | Interactive buttons (5 styles: primary, secondary, success, danger, link) |
+| `DiscordActionRow` | `ActionRowBuilder` | Container for buttons (max 5) or one select menu |
+| `DiscordSelectMenu` | `StringSelectMenuBuilder` | Dropdowns with up to 25 options |
+| `DiscordModal` | `ModalBuilder` | Popup forms triggered by button interactions |
+| `DiscordTextInput` | `TextInputBuilder` | Text fields inside modals (short or paragraph) |
+
+**How it works:**
+
+1. During A2UI catalog negotiation, a2discord advertises its `supportedCatalogIds`
+2. The agent receives the catalog and learns what components are available
+3. The agent composes UI using only catalog components (e.g., `DiscordEmbed` + `DiscordButton`)
+4. The `DiscordCatalogRenderer` translates the A2UI JSON into discord.js objects
+5. The same agent given a different catalog (Slack, web) would produce different UI — **the agent is surface-agnostic**
+
+The catalog JSON Schema lives at [`catalog/discord_catalog.json`](../catalog/discord_catalog.json).
 
 ## Task Lifecycle in Discord
 

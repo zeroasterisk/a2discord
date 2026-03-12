@@ -176,7 +176,6 @@ The adapter sends this to the Discord API via `channel.send(options)` and stores
 
 Discord displays a blue embed with the question text and two buttons (True/False).
 
-<!-- TODO: Add screenshot of the rendered question in Discord -->
 ![Quiz question rendered in Discord](images/quiz-question.png)
 
 The user sees native Discord UI — an embed with interactive buttons. No web views, no iframes, no custom rendering. Pure Discord components.
@@ -283,7 +282,6 @@ I'll update the surface to show a success result and remove the buttons."
 
 a2discord renders this → Discord edits the original message → green embed replaces blue, buttons removed.
 
-<!-- TODO: Add screenshot of the "Correct!" result in Discord -->
 ![Quiz result rendered in Discord](images/quiz-result.png)
 
 ## Step 7: Continue the Conversation

@@ -11,7 +11,6 @@ User clicks button     → a2discord adapter  → A2UI clientEvent → Agent rec
 
 The agent doesn't import `discord.js`. It composes UI using the **Discord component catalog** — a set of 7 Discord-native components defined as A2UI v0.9 JSON Schema. The adapter renders them as native Discord primitives.
 
-<!-- TODO: Add screenshot showing the quiz question with True/False buttons -->
 ![A2UI quiz rendered in Discord](docs/images/quiz-question.png)
 
 **→ [Full end-to-end walkthrough](docs/END_TO_END_WALKTHROUGH.md)** — traces a single interaction through every layer.

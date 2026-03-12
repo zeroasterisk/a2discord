@@ -1,50 +1,47 @@
 # A2Discord Roadmap
 
-## Phase 1 — MVP (2 weeks)
+## Phase 1 — MVP ✅ Complete
 
-Basic adapter: receive Discord messages, forward as A2A tasks, render text responses.
+Foundation: Discord bot with A2UI catalog rendering, deterministic demo, full test coverage.
 
-- [ ] Project scaffolding (Python + uv + discord.py)
-- [ ] Basic Discord bot (connect, receive messages, reply)
-- [ ] A2A client integration (send tasks, receive responses)
-- [ ] Response rendering (text → message, structured → embed)
-- [ ] ADK sample agent (echo + simple tool use)
-- [ ] Deploy to test Discord server
-- [ ] CI setup (lint, test)
+- [x] Project scaffolding (TypeScript + Bun)
+- [x] Discord bot (connect, receive messages, reply)
+- [x] A2A client integration
+- [x] A2UI Discord catalog (7 components)
+- [x] DiscordCatalogRenderer
+- [x] A2H intent → Discord rendering
+- [x] Demo bot (deterministic, all patterns)
+- [x] Test suite (134 tests: unit + integration + E2E)
+- [x] Live E2E verification
+- [x] CI setup
 
-**Goal:** A working bot that forwards messages to an A2A agent and posts responses.
+## Phase 2 — Agent Integration (Next)
 
-## Phase 2 — Rich Interactions (2 weeks)
+Connect real A2A agents and handle the full interaction lifecycle.
 
-A2H patterns with Discord components.
-
-- [ ] AUTHORIZE: button rows (✅/❌) with outcome editing
-- [ ] COLLECT: modal forms from schema
-- [ ] ESCALATE: mention/ping + thread creation
-- [ ] RESULT: edit original message with outcome
+- [ ] Connect real A2A agent (ADK sample)
+- [ ] A2UI catalog negotiation (`supportedCatalogIds` in metadata)
+- [ ] A2UI `clientEvent` → agent (button clicks, select, modal submit)
 - [ ] Thread-per-task lifecycle
-- [ ] Streaming via message edits
+- [ ] Streaming via message edits with rate governor
+- [ ] Surface state management
 - [ ] Authorization timeout handling
 
-**Goal:** Full A2H interaction patterns working in Discord.
+## Phase 3 — Production Hardening
 
-## Phase 3 — A2UI Rendering (2 weeks)
+Make it deployable and observable.
 
-Map A2UI components to Discord embeds and components.
+- [ ] Slash command registration from agent skills
+- [ ] Multi-agent routing
+- [ ] Error recovery and retry
+- [ ] Metrics and observability
+- [ ] NPM package publication
 
-- [ ] Container → embed mapping
-- [ ] Button/action row rendering
-- [ ] Select menu rendering
-- [ ] Media gallery → attachment embeds
-- [ ] Graceful fallback for unsupported components
-- [ ] Component interaction → A2A message forwarding
+## Phase 4 — Advanced Features
 
-**Goal:** Rich UI rendering from A2UI specs.
+Expand beyond text-based interactions.
 
-## Phase 4 — Multi-agent (future)
-
-- [ ] Multiple agents per server
-- [ ] Agent discovery via slash commands
-- [ ] Per-channel agent routing
-- [ ] Inter-agent communication via Discord channels
+- [ ] Voice channel integration
+- [ ] File/attachment handling
+- [ ] Cross-server federation
 - [ ] Agent Card → bot profile sync

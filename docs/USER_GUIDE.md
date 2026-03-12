@@ -47,7 +47,10 @@ DISCORD_GUILD_ID=your-server-id
 ## 3. Run
 
 ```bash
-# Development (with hot reload)
+# Demo bot (deterministic, no agent needed — great for testing)
+bun run demo
+
+# Development (with hot reload, connects to A2A agent)
 bun run dev
 
 # Production
@@ -57,7 +60,9 @@ bun run start
 
 ## 4. Test
 
-Send a message in any channel the bot can see. The adapter will:
+**Demo mode:** Run `bun run demo` to start the deterministic demo bot. It responds to commands like `!quiz`, `!authorize`, `!collect`, etc., demonstrating all A2UI patterns without needing a real agent.
+
+**With an agent:** Send a message in any channel the bot can see. The adapter will:
 1. Forward the message to your A2A agent as a task
 2. Render the agent's response as a Discord message
 

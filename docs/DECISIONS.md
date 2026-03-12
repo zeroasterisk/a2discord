@@ -49,7 +49,7 @@
 
 **Consequences:**
 
-- Project scaffold will change from Python/uv to TypeScript/bun.
+- Project uses TypeScript/Bun (migrated from initial Python/uv scaffold).
 - Sample ADK agent remains Python — proving the language-agnostic point.
 
 ---
