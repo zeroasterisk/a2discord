@@ -3,6 +3,7 @@
  */
 
 export { DiscordCatalogRenderer } from './a2ui-renderer.js';
+export * from './discord-catalog.js';
 
 // Re-export the old renderer for backward compat
 import {

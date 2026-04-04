@@ -3,6 +3,8 @@
  *
  * Takes A2UI v0.9 messages using the Discord catalog and renders them
  * as discord.js objects (embeds, buttons, select menus, modals).
+ *
+ * Uses web_core's MessageProcessor for message processing.
  */
 
 import {
@@ -15,19 +17,17 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { discordCatalog, type DiscordComponentApi } from './discord-catalog.js';
 import type {
   A2UIMessage,
   DiscordMessageOptions,
   DiscordRenderResult,
-  DiscordComponent,
-  DiscordMessageComponent,
   DiscordEmbedComponent,
   DiscordActionRowComponent,
   DiscordButtonComponent,
   DiscordSelectMenuComponent,
-  DiscordModalComponent,
   DiscordTextInputComponent,
-  A2UICreateSurface,
 } from '../types.js';
 
 // ─── Style Mapping ───
@@ -49,27 +49,33 @@ function parseColor(hex?: string): number | undefined {
 // ─── Renderer ───
 
 export class DiscordCatalogRenderer {
-  private surfaces: Map<string, A2UICreateSurface> = new Map();
-
   /**
    * Process an array of A2UI v0.9 messages and return Discord render results.
    */
   render(a2uiMessages: A2UIMessage[]): DiscordRenderResult {
     const result: DiscordRenderResult = { messages: [], modals: [] };
 
-    for (const msg of a2uiMessages) {
-      if (msg.createSurface) {
-        this.surfaces.set(msg.createSurface.surfaceId, msg.createSurface);
-      }
+    // Create a fresh processor each time to avoid stale state
+    const processor = new MessageProcessor<DiscordComponentApi>([discordCatalog]);
 
-      if (msg.updateComponents) {
-        const components = msg.updateComponents.components;
-        for (const comp of components) {
-          if (comp.component === 'DiscordMessage') {
-            result.messages.push(this.renderMessage(comp as DiscordMessageComponent));
-          } else if (comp.component === 'DiscordModal') {
-            result.modals.push(this.renderModal(comp as DiscordModalComponent));
-          }
+    // Strip `version` field before passing to processor
+    const stripped = a2uiMessages.map(msg => {
+      const { version, ...rest } = msg;
+      return rest;
+    });
+
+    processor.processMessages(stripped as any);
+
+    // Iterate over surfaces to find components
+    for (const [, surface] of processor.model.surfacesMap) {
+      for (const [, componentModel] of surface.componentsModel.entries) {
+        const type = componentModel.type;
+        const props = componentModel.properties;
+
+        if (type === 'DiscordMessage') {
+          result.messages.push(this.renderMessage(props));
+        } else if (type === 'DiscordModal') {
+          result.modals.push(this.renderModal(props));
         }
       }
     }
@@ -92,19 +98,19 @@ export class DiscordCatalogRenderer {
 
   // ─── Component Renderers ───
 
-  private renderMessage(comp: DiscordMessageComponent): DiscordMessageOptions {
+  private renderMessage(props: Record<string, any>): DiscordMessageOptions {
     const opts: DiscordMessageOptions = {};
 
-    if (comp.content) {
-      opts.content = comp.content.slice(0, 2000);
+    if (props.content) {
+      opts.content = props.content.slice(0, 2000);
     }
 
-    if (comp.embeds?.length) {
-      opts.embeds = comp.embeds.slice(0, 10).map(e => this.renderEmbed(e));
+    if (props.embeds?.length) {
+      opts.embeds = props.embeds.slice(0, 10).map((e: DiscordEmbedComponent) => this.renderEmbed(e));
     }
 
-    if (comp.components?.length) {
-      opts.components = comp.components.slice(0, 5).map(r => this.renderActionRow(r));
+    if (props.components?.length) {
+      opts.components = props.components.slice(0, 5).map((r: DiscordActionRowComponent) => this.renderActionRow(r));
     }
 
     if (!opts.content && !opts.embeds?.length && !opts.components?.length) {
@@ -198,12 +204,12 @@ export class DiscordCatalogRenderer {
     return select;
   }
 
-  private renderModal(comp: DiscordModalComponent): ModalBuilder {
+  private renderModal(props: Record<string, any>): ModalBuilder {
     const modal = new ModalBuilder()
-      .setCustomId(comp.customId)
-      .setTitle(comp.title.slice(0, 45));
+      .setCustomId(props.customId)
+      .setTitle(props.title.slice(0, 45));
 
-    for (const field of (comp.fields ?? []).slice(0, 5)) {
+    for (const field of (props.fields ?? []).slice(0, 5)) {
       const input = this.renderTextInput(field);
       modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(input)

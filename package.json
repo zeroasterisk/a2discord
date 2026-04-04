@@ -18,12 +18,14 @@
   },
   "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.18.0"
+    "@a2ui/web_core": "file:/home/node/.openclaw/projects/a2ui/renderers/web_core",
+    "discord.js": "^14.18.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
     "tsx": "^4.0.0",
-    "vitest": "^3.0.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
   }
 }
